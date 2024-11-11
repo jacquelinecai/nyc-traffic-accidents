@@ -13,20 +13,37 @@
     .highlight {
       fill: #036ffc;
     }
+
+    .dot {
+      fill: red;
+      opacity: 0.7;
+    }
   </style>
 </head>
 
 <body>
   <svg id="nyc-map" height="600" width="800"></svg>
+  <div id="controls">
+    <label>Select Borough: </label>
+    <select id="borough-select">
+      <option value="all">All</option>
+    </select>
+  </div>
   <script>
     const svg = d3.select("#nyc-map");
     const width = svg.attr("width");
     const height = svg.attr("height");
+    const minAccidents = 100;
     const render = async () => {
       const boroughs = await d3.json('nyc_boroughs.topo.json');
       console.log(boroughs)
       const boroughsFeature = topojson.feature(boroughs, boroughs.objects.nyc_boroughs);
       console.log(boroughsFeature)
+
+      const collisions = await d3.csv('NYC_Collisions.csv');
+      const collisionsFiltered = collisions.filter(d =>
+        d.Borough && d['Street Name'] && d.Latitude && d.Longitude && d.Date && d.Time
+      );
 
       const projection = d3.geoMercator()
         .fitSize([width, height], boroughsFeature);
@@ -38,14 +55,68 @@
         .join("path")
         .attr("class", "borough")
         .attr("d", path)
+        .on("click", function (event, d) {
+          zoomToBorough(d);
+        });
+
+      const accidentCount = d3.rollups(
+        collisionsFiltered,
+        v => v.length,
+        d => d['Street Name']
+      ).filter(([_, count]) => count => minAccidents);
+
+      const accidentsWithCoords = accidentCount.map(([street, count]) => {
+        const point = collisionsFiltered.find(d => d['Street Name'] === street);
+        if (point && point.Latitude && point.Longitude) {
+          return {
+            street: street,
+            count: count,
+            coordinates: [point.Longitude, point.Latitude]
+          };
+        }
+      }).filter(d => d && d.count && d.coordinates);
+
+      svg.selectAll(".dot")
+        .data(accidentsWithCoords)
+        .join("circle")
+        .attr("class", "dot")
+        .attr("cx", d => d.coordinates ? projection(d.coordinates)[0] : 0)
+        .attr("cy", d => d.coordinates ? projection(d.coordinates)[1] : 0)
+        .attr("r", d => d.count ? Math.sqrt(d.count) : 0)
         .on("mouseover", function (event, d) {
-          d3.select(this).classed("highlight", true);
+          d3.select(this).style("fill", "orange");
         })
         .on("mouseout", function (event, d) {
-          d3.select(this).classed("highlight", false);
-        })
-        .append("title")
+          d3.select(this).style("fill", "red");
+        });
+
+      d3.select("#borough-select")
+        .selectAll("option")
+        .data(boroughsFeature.features)
+        .join("option")
+        .attr("value", d => d.properties.name)
         .text(d => d.properties.name);
+
+      const zoomToBorough = (borough) => {
+        const [[x0, y0], [x1, y1]] = path.bounds(borough);
+        svg.transition().duration(750).call(
+          d3.zoom().transform,
+          d3.zoomIdentity
+            .translate(width / 2, height / 2)
+            .scale(0.8 / Math.max((x1 - x0) / width, (y1 - y0) / height))
+            .translate(-(x0 + x1) / 2, -(y0 + y1) / 2)
+        );
+      };
+
+      d3.select("#borough-select").on("change", function () {
+        const selectedBorough = this.value;
+        if (selectedBorough === "all") {
+          svg.transition().duration(750).call(d3.zoom().transform, d3.zoomIdentity);
+        } else {
+          const borough = boroughsFeature.features.find(b => b.properties.name === selectedBorough);
+          if (borough) zoomToBorough(borough);
+        }
+      });
     }
 
     render();
