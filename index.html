@@ -10,13 +10,15 @@
       stroke-width: 1px;
     }
 
-    .highlight {
+    .dot {
       fill: #036ffc;
+      opacity: 0.7;
     }
 
-    .dot {
-      fill: red;
-      opacity: 0.7;
+    .highlighted {
+      fill: #a8e6cf;
+      stroke: #8fc5b1;
+      stroke-width: 2px;
     }
   </style>
 </head>
@@ -34,6 +36,7 @@
     const width = svg.attr("width");
     const height = svg.attr("height");
     const minAccidents = 100;
+    let selectedBoroughPath;
     const render = async () => {
       const boroughs = await d3.json('nyc_boroughs.topo.json');
       console.log(boroughs)
@@ -41,9 +44,6 @@
       console.log(boroughsFeature)
 
       const collisions = await d3.csv('NYC_Collisions.csv');
-      const collisionsFiltered = collisions.filter(d =>
-        d.Borough && d['Street Name'] && d.Latitude && d.Longitude && d.Date && d.Time
-      );
 
       const projection = d3.geoMercator()
         .fitSize([width, height], boroughsFeature);
@@ -60,13 +60,13 @@
         });
 
       const accidentCount = d3.rollups(
-        collisionsFiltered,
+        collisions,
         v => v.length,
         d => d['Street Name']
       ).filter(([_, count]) => count => minAccidents);
 
       const accidentsWithCoords = accidentCount.map(([street, count]) => {
-        const point = collisionsFiltered.find(d => d['Street Name'] === street);
+        const point = collisions.find(d => d['Street Name'] === street);
         if (point && point.Latitude && point.Longitude) {
           return {
             street: street,
@@ -84,37 +84,60 @@
         .attr("cy", d => d.coordinates ? projection(d.coordinates)[1] : 0)
         .attr("r", d => d.count ? Math.sqrt(d.count) : 0)
         .on("mouseover", function (event, d) {
-          d3.select(this).style("fill", "orange");
+          d3.select(this).style("fill", "#25d6fa");
         })
         .on("mouseout", function (event, d) {
-          d3.select(this).style("fill", "red");
+          d3.select(this).style("fill", "#036ffc");
         });
 
       d3.select("#borough-select")
-        .selectAll("option")
+        .selectAll("option.borough-option")
         .data(boroughsFeature.features)
         .join("option")
-        .attr("value", d => d.properties.name)
-        .text(d => d.properties.name);
+        .attr("class", "borough-option")
+        .attr("value", d => d.properties.boro_name)
+        .text(d => d.properties.boro_name);
 
-      const zoomToBorough = (borough) => {
+      const zoom = d3.zoom().on("zoom", (event) => {
+        svg.selectAll('path').attr('transform', event.transform);
+        svg.selectAll('circle').attr('transform', event.transform);
+      });
+
+      svg.call(zoom);
+
+      const zoomToBorough = (borough, boroughPath) => {
         const [[x0, y0], [x1, y1]] = path.bounds(borough);
+        const scale = 0.8 / Math.max((x1 - x0) / width, (y1 - y0) / height);
+        const translate = [
+          width / 2 - scale * (x0 + x1) / 2,
+          height / 2 - scale * (y0 + y1) / 2
+        ];
+
         svg.transition().duration(750).call(
-          d3.zoom().transform,
-          d3.zoomIdentity
-            .translate(width / 2, height / 2)
-            .scale(0.8 / Math.max((x1 - x0) / width, (y1 - y0) / height))
-            .translate(-(x0 + x1) / 2, -(y0 + y1) / 2)
+          zoom.transform,
+          d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
         );
+
+        if (selectedBoroughPath) {
+          selectedBoroughPath.classed("highlighted", false);
+        }
+
+        selectedBoroughPath = boroughPath;
+        selectedBoroughPath.classed("highlighted", true);
       };
 
       d3.select("#borough-select").on("change", function () {
         const selectedBorough = this.value;
         if (selectedBorough === "all") {
-          svg.transition().duration(750).call(d3.zoom().transform, d3.zoomIdentity);
+          svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+          if (selectedBoroughPath) {
+            selectedBoroughPath.classed("highlighted", false);
+            selectedBoroughPath = null;
+          }
         } else {
-          const borough = boroughsFeature.features.find(b => b.properties.name === selectedBorough);
-          if (borough) zoomToBorough(borough);
+          const borough = boroughsFeature.features.find(b => b.properties.boro_name === selectedBorough);
+          const boroughPath = svg.selectAll(".borough").filter(d => d.properties.boro_name === selectedBorough);
+          if (borough) zoomToBorough(borough, boroughPath);
         }
       });
     }
