@@ -20,6 +20,17 @@
       stroke: #8fc5b1;
       stroke-width: 2px;
     }
+    .tooltip {
+      position: absolute;
+      visibility: hidden;
+      padding: 5px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      pointer-events: none;
+      white-space: nowrap;
+    }
   </style>
 </head>
 
@@ -30,6 +41,15 @@
     <select id="borough-select">
       <option value="all">All</option>
     </select>
+
+    <label>Select Vehicle Type: </label>
+    <select id="vehicle-type-select">
+      <option value="all">All</option>
+    </select>
+
+    <div id="tooltip" style="position: absolute; visibility: hidden; padding: 5px; background-color: #fff; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; pointer-events: none;"></div>
+
+
   </div>
   <script>
     const svg = d3.select("#nyc-map");
@@ -59,6 +79,15 @@
           zoomToBorough(d);
         });
 
+      const vehicleTypes = [...new Set(collisions.map(d => d['Vehicle Type']))];
+      d3.select("#vehicle-type-select")
+        .selectAll("option.vehicle-option")
+        .data(vehicleTypes)
+        .join("option")
+        .attr("class", "vehicle-option")
+        .attr("value", d => d)
+        .text(d => d);
+
       const accidentCount = d3.rollups(
         collisions,
         v => v.length,
@@ -76,6 +105,8 @@
         }
       }).filter(d => d && d.count && d.coordinates);
 
+      const tooltip = d3.select("#tooltip");
+
       svg.selectAll(".dot")
         .data(accidentsWithCoords)
         .join("circle")
@@ -85,9 +116,16 @@
         .attr("r", d => d.count ? Math.sqrt(d.count) : 0)
         .on("mouseover", function (event, d) {
           d3.select(this).style("fill", "#25d6fa");
+          tooltip.style("visibility", "visible")
+          .text(`Accidents: ${d.count}, Street: ${d.street}`);
+        })
+        .on("mousemove", function (event) {
+            tooltip.style("top", `${event.pageY + 10}px`)
+              .style("left", `${event.pageX + 10}px`);
         })
         .on("mouseout", function (event, d) {
           d3.select(this).style("fill", "#036ffc");
+          tooltip.style("visibility", "hidden");
         });
 
       d3.select("#borough-select")
@@ -97,6 +135,39 @@
         .attr("class", "borough-option")
         .attr("value", d => d.properties.boro_name)
         .text(d => d.properties.boro_name);
+
+      
+
+        const updateAccidents = () => {
+          const selectedVehicleType = d3.select("#vehicle-type-select").property("value");
+
+          const filteredCollisions = collisions.filter(d => 
+            selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType
+          );
+
+          const accidentsWithCoords = filteredCollisions.map(d => ({
+            street: d['Street Name'],
+            count: d.count,
+            coordinates: [d.Longitude, d.Latitude]
+          })).filter(d => d && d.count && d.coordinates);
+
+          svg.selectAll(".dot")
+            .data(accidentsWithCoords)
+            .join("circle")
+            .attr("class", "dot")
+            .attr("cx", d => d.coordinates ? projection(d.coordinates)[0] : 0)
+            .attr("cy", d => d.coordinates ? projection(d.coordinates)[1] : 0)
+            .attr("r", d => d.count ? Math.sqrt(d.count) : 0)
+            .on("mouseover", function (event, d) {
+              d3.select(this).style("fill", "#25d6fa");
+            })
+            .on("mouseout", function (event, d) {
+              d3.select(this).style("fill", "#036ffc");
+            });
+        };
+
+      d3.select("#vehicle-type-select").on("change", updateAccidents);
+
 
       const zoom = d3.zoom().on("zoom", (event) => {
         svg.selectAll('path').attr('transform', event.transform);
