@@ -20,6 +20,7 @@
       stroke: #8fc5b1;
       stroke-width: 2px;
     }
+
     .tooltip {
       position: absolute;
       visibility: hidden;
@@ -47,16 +48,20 @@
       <option value="all">All</option>
     </select>
 
-    <div id="tooltip" style="position: absolute; visibility: hidden; padding: 5px; background-color: #fff; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; pointer-events: none;"></div>
+    <label>Minimum Accidents: </label>
+    <input type="range" id="min-accidents-slider" min="0" max="100" value="25">
+    <span id="min-accidents-value">25</span>
 
-
+    <div id="tooltip" class="tooltip"></div>
   </div>
+
   <script>
     const svg = d3.select("#nyc-map");
     const width = svg.attr("width");
     const height = svg.attr("height");
-    const minAccidents = 100;
+    let minAccidents = 25;
     let selectedBoroughPath;
+
     const render = async () => {
       const boroughs = await d3.json('nyc_boroughs.topo.json');
       console.log(boroughs)
@@ -69,6 +74,14 @@
         .fitSize([width, height], boroughsFeature);
 
       const path = d3.geoPath().projection(projection);
+
+      d3.select("#borough-select")
+        .selectAll("option.borough-option")
+        .data(boroughsFeature.features)
+        .join("option")
+        .attr("class", "borough-option")
+        .attr("value", d => d.properties.boro_name)
+        .text(d => d.properties.boro_name);
 
       svg.selectAll(".borough")
         .data(boroughsFeature.features)
@@ -88,86 +101,68 @@
         .attr("value", d => d)
         .text(d => d);
 
-      const accidentCount = d3.rollups(
-        collisions,
-        v => v.length,
-        d => d['Street Name']
-      ).filter(([_, count]) => count => minAccidents);
-
-      const accidentsWithCoords = accidentCount.map(([street, count]) => {
-        const point = collisions.find(d => d['Street Name'] === street);
-        if (point && point.Latitude && point.Longitude) {
-          return {
-            street: street,
-            count: count,
-            coordinates: [point.Longitude, point.Latitude]
-          };
-        }
-      }).filter(d => d && d.count && d.coordinates);
-
       const tooltip = d3.select("#tooltip");
 
-      svg.selectAll(".dot")
-        .data(accidentsWithCoords)
-        .join("circle")
-        .attr("class", "dot")
-        .attr("cx", d => d.coordinates ? projection(d.coordinates)[0] : 0)
-        .attr("cy", d => d.coordinates ? projection(d.coordinates)[1] : 0)
-        .attr("r", d => d.count ? Math.sqrt(d.count) : 0)
-        .on("mouseover", function (event, d) {
-          d3.select(this).style("fill", "#25d6fa");
-          tooltip.style("visibility", "visible")
-          .text(`Accidents: ${d.count}, Street: ${d.street}`);
-        })
-        .on("mousemove", function (event) {
+      const updateAccidents = () => {
+        const selectedVehicleType = d3.select("#vehicle-type-select").property("value");
+        const filteredCollisions = collisions.filter(d =>
+          (selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType)
+        );
+
+        const accidentCounts = d3.rollups(
+          filteredCollisions,
+          v => v.length,
+          d => d['Street Name']
+        ).filter(([_, count]) => count >= minAccidents);
+
+        const accidentsWithCoords = accidentCounts.map(([street, count]) => {
+          const point = filteredCollisions.find(d => d['Street Name'] === street);
+          if (point && point.Latitude && point.Longitude) {
+            return {
+              street: street,
+              count: count,
+              coordinates: [point.Longitude, point.Latitude]
+            };
+          }
+        }).filter(d => d && d.count && d.coordinates);
+
+        const dots = svg.selectAll(".dot")
+          .data(accidentsWithCoords, d => d.street);
+
+        dots.enter()
+          .append("circle")
+          .attr("class", "dot")
+          .attr("cx", d => projection(d.coordinates)[0])
+          .attr("cy", d => projection(d.coordinates)[1])
+          .attr("r", d => Math.sqrt(d.count))
+          .on("mouseover", function (event, d) {
+            d3.select(this).style("fill", "#25d6fa");
+            tooltip.style("visibility", "visible")
+              .text(`Accidents: ${d.count}, Street: ${d.street}`);
+          })
+          .on("mousemove", function (event) {
             tooltip.style("top", `${event.pageY + 10}px`)
               .style("left", `${event.pageX + 10}px`);
-        })
-        .on("mouseout", function (event, d) {
-          d3.select(this).style("fill", "#036ffc");
-          tooltip.style("visibility", "hidden");
-        });
+          })
+          .on("mouseout", function () {
+            d3.select(this).style("fill", "#036ffc");
+            tooltip.style("visibility", "hidden");
+          });
 
-      d3.select("#borough-select")
-        .selectAll("option.borough-option")
-        .data(boroughsFeature.features)
-        .join("option")
-        .attr("class", "borough-option")
-        .attr("value", d => d.properties.boro_name)
-        .text(d => d.properties.boro_name);
+        dots.attr("cx", d => projection(d.coordinates)[0])
+          .attr("cy", d => projection(d.coordinates)[1])
+          .attr("r", d => Math.sqrt(d.count));
 
-      
-
-        const updateAccidents = () => {
-          const selectedVehicleType = d3.select("#vehicle-type-select").property("value");
-
-          const filteredCollisions = collisions.filter(d => 
-            selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType
-          );
-
-          const accidentsWithCoords = filteredCollisions.map(d => ({
-            street: d['Street Name'],
-            count: d.count,
-            coordinates: [d.Longitude, d.Latitude]
-          })).filter(d => d && d.count && d.coordinates);
-
-          svg.selectAll(".dot")
-            .data(accidentsWithCoords)
-            .join("circle")
-            .attr("class", "dot")
-            .attr("cx", d => d.coordinates ? projection(d.coordinates)[0] : 0)
-            .attr("cy", d => d.coordinates ? projection(d.coordinates)[1] : 0)
-            .attr("r", d => d.count ? Math.sqrt(d.count) : 0)
-            .on("mouseover", function (event, d) {
-              d3.select(this).style("fill", "#25d6fa");
-            })
-            .on("mouseout", function (event, d) {
-              d3.select(this).style("fill", "#036ffc");
-            });
-        };
+        dots.exit().remove();
+      };
 
       d3.select("#vehicle-type-select").on("change", updateAccidents);
 
+      d3.select("#min-accidents-slider").on("input", function () {
+        minAccidents = +this.value;
+        d3.select("#min-accidents-value").text(minAccidents);
+        updateAccidents();
+      });
 
       const zoom = d3.zoom().on("zoom", (event) => {
         svg.selectAll('path').attr('transform', event.transform);
@@ -211,7 +206,9 @@
           if (borough) zoomToBorough(borough, boroughPath);
         }
       });
-    }
+
+      updateAccidents();
+    };
 
     render();
   </script>
