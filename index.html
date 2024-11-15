@@ -4,21 +4,17 @@
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://d3js.org/topojson.v3.min.js"></script>
   <style>
+    body {
+      font-family: 'Lucida Sans', 'Lucida Grande', Geneva, Verdana, sans-serif;
+    }
+
     .borough {
-      fill: #bdc3c7;
-      stroke: #2c3e50;
+      stroke: #34495e;
       stroke-width: 1px;
     }
 
     .dot {
-      fill: #036ffc;
-      opacity: 0.7;
-    }
-
-    .highlighted {
-      fill: #a8e6cf;
-      stroke: #8fc5b1;
-      stroke-width: 2px;
+      opacity: 0.8;
     }
 
     .tooltip {
@@ -32,10 +28,27 @@
       pointer-events: none;
       white-space: nowrap;
     }
+
+    .legend {
+      font-size: 12px;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
   </style>
 </head>
 
 <body>
+  <div class="title">NYC Traffic Accidents</div>
+  <div class="subtitle">Interactive map showing accident locations and borough population density</div>
   <svg id="nyc-map" height="600" width="800"></svg>
   <div id="controls">
     <div>
@@ -44,7 +57,6 @@
         <option value="all">All</option>
       </select>
     </div>
-
     <div>
       <label>Select Vehicle Type: </label>
       <select id="vehicle-type-select">
@@ -52,35 +64,46 @@
       </select>
     </div>
 
-    <div>
-      <label>Minimum Accidents: </label>
-      <input type="range" id="min-accidents-slider" min="0" max="100" value="25">
-      <span id="min-accidents-value">25</span>
-    </div>
-
     <div id="tooltip" class="tooltip"></div>
+    <svg id="legend" height="100" width="800"></svg>
   </div>
 
   <script>
     const svg = d3.select("#nyc-map");
     const width = svg.attr("width");
     const height = svg.attr("height");
+    const legendSvg = d3.select("#legend");
+
     let minAccidents = 25;
-    let selectedBoroughPath;
+
+    // Population data for each borough
+    const populationData = {
+      "Manhattan": 1644518,
+      "Brooklyn": 2559903,
+      "Queens": 2253858,
+      "Bronx": 1472654,
+      "Staten Island": 476143
+    };
+
+    // Color scale for borough population
+    const boroughColorScale = d3.scaleLinear()
+      .domain([476143, 2559903])
+      .range(["#5faacb", "#2c7fb8"]);
+
+    // Color scale for accidents
+    const accidentColorScale = d3.scaleLinear()
+      .domain([1, 25]) // Example range of accident counts
+      .range(["#fee5d9", "#a50f15"]);
 
     const render = async () => {
       const boroughs = await d3.json('nyc_boroughs.topo.json');
-      console.log(boroughs)
       const boroughsFeature = topojson.feature(boroughs, boroughs.objects.nyc_boroughs);
-      console.log(boroughsFeature)
-
       const collisions = await d3.csv('NYC_Collisions.csv');
 
-      const projection = d3.geoMercator()
-        .fitSize([width, height], boroughsFeature);
-
+      const projection = d3.geoMercator().fitSize([width, height], boroughsFeature);
       const path = d3.geoPath().projection(projection);
 
+      // Populate borough dropdown
       d3.select("#borough-select")
         .selectAll("option.borough-option")
         .data(boroughsFeature.features)
@@ -89,16 +112,8 @@
         .attr("value", d => d.properties.boro_name)
         .text(d => d.properties.boro_name);
 
-      svg.selectAll(".borough")
-        .data(boroughsFeature.features)
-        .join("path")
-        .attr("class", "borough")
-        .attr("d", path)
-        .on("click", function (event, d) {
-          zoomToBorough(d);
-        });
-
-      const vehicleTypes = [...new Set(collisions.map(d => d['Vehicle Type']))];
+      // Populate vehicle type dropdown
+      const vehicleTypes = Array.from(new Set(collisions.map(d => d['Vehicle Type']).filter(Boolean)));
       d3.select("#vehicle-type-select")
         .selectAll("option.vehicle-option")
         .data(vehicleTypes)
@@ -107,33 +122,30 @@
         .attr("value", d => d)
         .text(d => d);
 
+      svg.selectAll(".borough")
+        .data(boroughsFeature.features)
+        .join("path")
+        .attr("class", "borough")
+        .attr("d", path)
+        .attr("fill", d => boroughColorScale(populationData[d.properties.boro_name]));
+
       const tooltip = d3.select("#tooltip");
 
       const updateAccidents = () => {
         const selectedVehicleType = d3.select("#vehicle-type-select").property("value");
-        const filteredCollisions = collisions.filter(d =>
-          (selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType)
-        );
+        const filteredCollisions = collisions.filter(d => {
+          const vehicleTypeMatch = selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType;
+          return vehicleTypeMatch && d['Street Name'] && d.Latitude && d.Longitude;
+        });
 
-        const accidentCounts = d3.rollups(
-          filteredCollisions,
-          v => v.length,
-          d => d['Street Name']
-        ).filter(([_, count]) => count >= minAccidents);
-
-        const accidentsWithCoords = accidentCounts.map(([street, count]) => {
-          const point = filteredCollisions.find(d => d['Street Name'] === street);
-          if (point && point.Latitude && point.Longitude) {
-            return {
-              street: street,
-              count: count,
-              coordinates: [point.Longitude, point.Latitude]
-            };
-          }
-        }).filter(d => d && d.count && d.coordinates);
+        const accidentsWithCoords = filteredCollisions.map(d => ({
+          street: d['Street Name'], // Include the street name
+          count: +d['Persons Injured'] || 0,
+          coordinates: [+d.Longitude, +d.Latitude]
+        })).filter(d => d.street && d.count && d.coordinates);
 
         const dots = svg.selectAll(".dot")
-          .data(accidentsWithCoords, d => d.street);
+          .data(accidentsWithCoords);
 
         dots.enter()
           .append("circle")
@@ -141,41 +153,36 @@
           .attr("cx", d => projection(d.coordinates)[0])
           .attr("cy", d => projection(d.coordinates)[1])
           .attr("r", d => Math.sqrt(d.count))
+          .attr("fill", d => accidentColorScale(d.count))
           .on("mouseover", function (event, d) {
             d3.select(this).style("fill", "#25d6fa");
             tooltip.style("visibility", "visible")
               .text(`Accidents: ${d.count}, Street: ${d.street}`);
           })
-          .on("mousemove", function (event) {
+          .on("mousemove", event => {
             tooltip.style("top", `${event.pageY + 10}px`)
               .style("left", `${event.pageX + 10}px`);
           })
-          .on("mouseout", function () {
-            d3.select(this).style("fill", "#036ffc");
+          .on("mouseout", () => {
             tooltip.style("visibility", "hidden");
           });
 
         dots.attr("cx", d => projection(d.coordinates)[0])
           .attr("cy", d => projection(d.coordinates)[1])
-          .attr("r", d => Math.sqrt(d.count));
+          .attr("r", d => Math.sqrt(d.count))
+          .attr("fill", d => accidentColorScale(d.count));
 
         dots.exit().remove();
       };
 
+      // Update accidents when vehicle type changes
       d3.select("#vehicle-type-select").on("change", updateAccidents);
 
-      d3.select("#min-accidents-slider").on("input", function () {
-        minAccidents = +this.value;
-        d3.select("#min-accidents-value").text(minAccidents);
-        updateAccidents();
-      });
-
+      updateAccidents();
       const zoom = d3.zoom().on("zoom", (event) => {
         svg.selectAll('path').attr('transform', event.transform);
         svg.selectAll('circle').attr('transform', event.transform);
       });
-
-      svg.call(zoom);
 
       const zoomToBorough = (borough, boroughPath) => {
         const [[x0, y0], [x1, y1]] = path.bounds(borough);
@@ -184,7 +191,6 @@
           width / 2 - scale * (x0 + x1) / 2,
           height / 2 - scale * (y0 + y1) / 2
         ];
-
         svg.transition().duration(750).call(
           zoom.transform,
           d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
@@ -213,10 +219,32 @@
         }
       });
 
-      updateAccidents();
+      svg.call(zoom);
+
+
+      // Add a legend
+      const legendWidth = 200;
+      const legendHeight = 10;
+
+      legendSvg.append("g")
+        .selectAll("rect")
+        .data(accidentColorScale.ticks(10))
+        .enter()
+        .append("rect")
+        .attr("x", (d, i) => i * legendWidth / 10)
+        .attr("y", 0)
+        .attr("width", legendWidth / 10)
+        .attr("height", legendHeight)
+        .attr("fill", d => accidentColorScale(d));
+
+      legendSvg.append("text")
+        .attr("x", 0)
+        .attr("y", 30)
+        .text("Accident Count");
     };
 
     render();
+
   </script>
 </body>
 
