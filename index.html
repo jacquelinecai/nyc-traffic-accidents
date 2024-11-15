@@ -38,19 +38,25 @@
 <body>
   <svg id="nyc-map" height="600" width="800"></svg>
   <div id="controls">
-    <label>Select Borough: </label>
-    <select id="borough-select">
-      <option value="all">All</option>
-    </select>
+    <div>
+      <label>Select Borough: </label>
+      <select id="borough-select">
+        <option value="all">All</option>
+      </select>
+    </div>
 
-    <label>Select Vehicle Type: </label>
-    <select id="vehicle-type-select">
-      <option value="all">All</option>
-    </select>
+    <div>
+      <label>Select Vehicle Type: </label>
+      <select id="vehicle-type-select">
+        <option value="all">All</option>
+      </select>
+    </div>
 
-    <label>Minimum Accidents: </label>
-    <input type="range" id="min-accidents-slider" min="0" max="100" value="25">
-    <span id="min-accidents-value">25</span>
+    <div>
+      <label>Minimum Accidents: </label>
+      <input type="range" id="min-accidents-slider" min="0" max="100" value="25">
+      <span id="min-accidents-value">25</span>
+    </div>
 
     <div id="tooltip" class="tooltip"></div>
   </div>
