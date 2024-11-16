@@ -155,7 +155,6 @@
           .attr("r", d => Math.sqrt(d.count))
           .attr("fill", d => accidentColorScale(d.count))
           .on("mouseover", function (event, d) {
-            d3.select(this).style("fill", "#25d6fa");
             tooltip.style("visibility", "visible")
               .text(`Accidents: ${d.count}, Street: ${d.street}`);
           })
