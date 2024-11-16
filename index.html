@@ -264,16 +264,13 @@
     const tooltip = d3.select("body").append("div").attr("class", "tooltip");
 
     const render2 = async () => {
-      // Load data
       const data = await d3.csv("Volume_Counts.csv");
 
-      // Parse data
       data.forEach(d => {
         d.HH = +d.HH; // Hour
         d.Vol = +d.Vol; // Volume
       });
 
-      // Aggregate data by Borough and Hour
       const aggregatedData = d3.rollups(
         data,
         v => d3.sum(v, d => d.Vol),
@@ -284,7 +281,6 @@
       const boroughs = Array.from(new Set(data.map(d => d.Boro)));
       const hours = Array.from(new Set(data.map(d => d.HH))).sort((a, b) => a - b);
 
-      // Populate dropdown
       const dropdown = d3.select("#time-dropdown");
       dropdown.selectAll("option")
         .data(hours)
@@ -292,28 +288,37 @@
         .attr("value", d => d)
         .text(d => `${d}:00`);
 
-      // Create scales
-      const xScale = d3.scaleBand()
-        .domain(boroughs)
-        .range([0, width2])
-        .padding(0.2);
+        const xScale = d3.scaleBand()
+  .domain(boroughs)
+  .range([10, width2]) // Add 10px padding at the start
+  .padding(0.2);
 
       const yScale = d3.scaleLinear()
         .range([height2, 0]);
 
-      // Draw axes
       const xAxis = g.append("g")
-        .attr("transform", `translate(0, ${height2})`) // Position at the bottom of the chart
-        .call(d3.axisBottom(xScale))
-        .selectAll("text")
-        .attr("text-anchor", "end") // Tilt labels if needed
-        .attr("dx", "1.8em")
-        .attr("dy", "1.5em")
+        .attr("transform", `translate(0, ${height2})`)
+        .call(d3.axisBottom(xScale));
 
+      const yAxis = g.append("g")
+        .call(d3.axisLeft(yScale));
 
-      const yAxis = g.append("g");
+      g.append("text")
+        .attr("class", "axis-label")
+        .attr("x", width2 / 2)
+        .attr("y", height2 + margin.bottom - 15) 
+        .attr("text-anchor", "middle") 
+        .text("Borough");
 
-      // Update function
+      // Add Y-axis label
+      g.append("text")
+        .attr("class", "axis-label")
+        .attr("x", -height2 / 2) 
+        .attr("y", -margin.left +12)
+        .attr("transform", "rotate(-90)") 
+        .attr("text-anchor", "middle")
+        .text("Volume (Congestion)");
+
       const updateChart = hour => {
         const filteredData = aggregatedData.map(([borough, hours]) => {
           const hourData = hours.find(([h]) => h === hour);
@@ -327,16 +332,13 @@
         const bars = g.selectAll(".bar")
           .data(filteredData, d => d.Boro);
 
-        // Enter
-        bars.enter()
-          .append("rect")
+        bars.join("rect")
           .attr("class", "bar")
           .attr("x", d => xScale(d.Boro))
           .attr("y", d => yScale(d.Vol))
           .attr("width", xScale.bandwidth())
           .attr("height", d => height2 - yScale(d.Vol))
           .attr("fill", d => {
-            // Example: Color based on borough
             if (d.Boro === "Manhattan") return "#1f77b4"; // Blue
             if (d.Boro === "Brooklyn") return "#ff7f0e"; // Orange
             if (d.Boro === "Queens") return "#2ca02c"; // Green
@@ -355,23 +357,19 @@
             tooltip.style("visibility", "hidden");
           });
 
-        // Update
         bars.transition()
           .attr("x", d => xScale(d.Boro))
           .attr("y", d => yScale(d.Vol))
           .attr("height", d => height2 - yScale(d.Vol));
 
-        // Exit
         bars.exit().remove();
       };
 
-      // Handle dropdown change
       dropdown.on("change", function () {
         const selectedHour = +this.value;
         updateChart(selectedHour);
       });
 
-      // Initial render
       updateChart(hours[0]);
     };
 
