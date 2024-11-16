@@ -160,10 +160,12 @@
             return {
               street: street,
               count: count,
-              coordinates: [point.Longitude, point.Latitude]
+              coordinates: [point.Longitude, point.Latitude],
+              borough: point.Borough // Add borough property
             };
           }
         }).filter(d => d && d.count && d.coordinates);
+
 
         const dots = svg.selectAll(".dot")
           .data(accidentsWithCoords, d => d.street);
@@ -218,23 +220,31 @@
           height / 2 - scale * (y0 + y1) / 2
         ];
 
+        // Zoom to the selected borough
         svg.transition().duration(750).call(
           zoom.transform,
           d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
         );
 
+        // Highlight the selected borough
         if (selectedBoroughPath) {
           selectedBoroughPath.classed("highlighted", false);
         }
-
         selectedBoroughPath = boroughPath;
         selectedBoroughPath.classed("highlighted", true);
+
+        // Show only circles within the selected borough
+        const boroughName = borough.properties.boro_name;
+        svg.selectAll(".dot")
+          .style("visibility", d => d.borough === boroughName ? "visible" : "hidden");
       };
 
+      // Reset visibility when zooming out
       d3.select("#borough-select").on("change", function () {
         const selectedBorough = this.value;
         if (selectedBorough === "all") {
           svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+          svg.selectAll(".dot").style("visibility", "visible"); // Show all dots
           if (selectedBoroughPath) {
             selectedBoroughPath.classed("highlighted", false);
             selectedBoroughPath = null;
@@ -261,7 +271,10 @@
 
     const g = svg2.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
 
-    const tooltip = d3.select("body").append("div").attr("class", "tooltip");
+    const tooltip = d3.select("body")
+      .append("div")
+      .attr("id", "tooltip")
+      .attr("class", "tooltip");
 
     const render2 = async () => {
       const data = await d3.csv("Volume_Counts.csv");
@@ -288,10 +301,10 @@
         .attr("value", d => d)
         .text(d => `${d}:00`);
 
-        const xScale = d3.scaleBand()
-  .domain(boroughs)
-  .range([10, width2]) // Add 10px padding at the start
-  .padding(0.2);
+      const xScale = d3.scaleBand()
+        .domain(boroughs)
+        .range([10, width2]) // Add 10px padding at the start
+        .padding(0.2);
 
       const yScale = d3.scaleLinear()
         .range([height2, 0]);
@@ -306,16 +319,16 @@
       g.append("text")
         .attr("class", "axis-label")
         .attr("x", width2 / 2)
-        .attr("y", height2 + margin.bottom - 15) 
-        .attr("text-anchor", "middle") 
+        .attr("y", height2 + margin.bottom - 15)
+        .attr("text-anchor", "middle")
         .text("Borough");
 
       // Add Y-axis label
       g.append("text")
         .attr("class", "axis-label")
-        .attr("x", -height2 / 2) 
-        .attr("y", -margin.left +12)
-        .attr("transform", "rotate(-90)") 
+        .attr("x", -height2 / 2)
+        .attr("y", -margin.left + 12)
+        .attr("transform", "rotate(-90)")
         .attr("text-anchor", "middle")
         .text("Volume (Congestion)");
 
