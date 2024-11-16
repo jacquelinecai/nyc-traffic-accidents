@@ -59,8 +59,8 @@
 <body>
 
   <!-- First Chart: NYC Traffic Accidents -->
-  <div class="title">NYC Traffic Accidents</div>
-  <div class="subtitle">Interactive map showing accident locations and borough population density</div>
+  <div class="title">NYC Traffic Accidents in 2022</div>
+  <div class="subtitle">Interactive map showing total accidents that happened in each borough</div>
   <svg id="nyc-map" height="600" width="800"></svg>
   <div id="controls-traffic">
     <div>
@@ -83,7 +83,7 @@
   </div>
 
   <!-- Second Chart: Congestion by Borough -->
-  <div class="title">Congestion by Borough</div>
+  <div class="title">Traffic Congestion by Borough in 2022</div>
   <div class="subtitle">Bar chart showing congestion levels for each borough by selected time</div>
   <div id="controls-congestion">
     <div>
@@ -330,7 +330,7 @@
         .attr("y", -margin.left + 12)
         .attr("transform", "rotate(-90)")
         .attr("text-anchor", "middle")
-        .text("Volume (Congestion)");
+        .text("Volume (Car Congestion)");
 
       const updateChart = hour => {
         const filteredData = aggregatedData.map(([borough, hours]) => {
@@ -361,7 +361,7 @@
           })
           .on("mouseover", (event, d) => {
             tooltip.style("visibility", "visible")
-              .text(`Borough: ${d.Boro}, Volume: ${d.Vol}`);
+              .text(` Volume: ${d.Vol}`);
           })
           .on("mousemove", event => {
             tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
