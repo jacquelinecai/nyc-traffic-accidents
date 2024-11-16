@@ -4,9 +4,11 @@
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://d3js.org/topojson.v3.min.js"></script>
   <style>
-    body{
+    body {
       font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+      margin-left: 40px;
     }
+
     .borough {
       fill: #bdc3c7;
       stroke: #2c3e50;
@@ -35,46 +37,62 @@
       pointer-events: none;
       white-space: nowrap;
     }
-        .title {
+
+    .title {
       font-size: 20px;
       font-weight: bold;
+      margin-top: 50px;
       margin-bottom: 10px;
     }
 
     .subtitle {
-      font-size: 14px;
       margin-bottom: 20px;
+    }
+
+    select {
+      margin-top: 10px;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 
 <body>
+
+  <!-- First Chart: NYC Traffic Accidents -->
   <div class="title">NYC Traffic Accidents</div>
   <div class="subtitle">Interactive map showing accident locations and borough population density</div>
   <svg id="nyc-map" height="600" width="800"></svg>
-  <div id="controls">
+  <div id="controls-traffic">
     <div>
       <label>Select Borough: </label>
       <select id="borough-select">
         <option value="all">All</option>
       </select>
     </div>
-
     <div>
       <label>Select Vehicle Type: </label>
       <select id="vehicle-type-select">
         <option value="all">All</option>
       </select>
     </div>
-
     <div>
       <label>Minimum Accidents: </label>
       <input type="range" id="min-accidents-slider" min="0" max="100" value="25">
       <span id="min-accidents-value">25</span>
     </div>
-
-    <div id="tooltip" class="tooltip"></div>
   </div>
+
+  <!-- Second Chart: Congestion by Borough -->
+  <div class="title">Congestion by Borough</div>
+  <div class="subtitle">Bar chart showing congestion levels for each borough by selected time</div>
+  <div id="controls-congestion">
+    <div>
+      <label for="time-dropdown">Select Time of Day: </label>
+      <select id="time-dropdown"></select>
+    </div>
+  </div>
+  <svg id="chart" width="900" height="500"></svg>
+
 
   <script>
     const svg = d3.select("#nyc-map");
@@ -233,6 +251,134 @@
 
     render();
   </script>
+
+
+  <script>
+    const svg2 = d3.select("#chart");
+    const margin = { top: 50, right: 30, bottom: 70, left: 60 }; // Increased bottom margin for borough labels
+    const width2 = svg2.attr("width") - margin.left - margin.right;
+    const height2 = svg2.attr("height") - margin.top - margin.bottom;
+
+    const g = svg2.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+    const tooltip = d3.select("body").append("div").attr("class", "tooltip");
+
+    const render2 = async () => {
+      // Load data
+      const data = await d3.csv("Volume_Counts.csv");
+
+      // Parse data
+      data.forEach(d => {
+        d.HH = +d.HH; // Hour
+        d.Vol = +d.Vol; // Volume
+      });
+
+      // Aggregate data by Borough and Hour
+      const aggregatedData = d3.rollups(
+        data,
+        v => d3.sum(v, d => d.Vol),
+        d => d.Boro,
+        d => d.HH
+      );
+
+      const boroughs = Array.from(new Set(data.map(d => d.Boro)));
+      const hours = Array.from(new Set(data.map(d => d.HH))).sort((a, b) => a - b);
+
+      // Populate dropdown
+      const dropdown = d3.select("#time-dropdown");
+      dropdown.selectAll("option")
+        .data(hours)
+        .join("option")
+        .attr("value", d => d)
+        .text(d => `${d}:00`);
+
+      // Create scales
+      const xScale = d3.scaleBand()
+        .domain(boroughs)
+        .range([0, width2])
+        .padding(0.2);
+
+      const yScale = d3.scaleLinear()
+        .range([height2, 0]);
+
+      // Draw axes
+      const xAxis = g.append("g")
+        .attr("transform", `translate(0, ${height2})`) // Position at the bottom of the chart
+        .call(d3.axisBottom(xScale))
+        .selectAll("text")
+        .attr("text-anchor", "end") // Tilt labels if needed
+        .attr("dx", "1.8em")
+        .attr("dy", "1.5em")
+
+
+      const yAxis = g.append("g");
+
+      // Update function
+      const updateChart = hour => {
+        const filteredData = aggregatedData.map(([borough, hours]) => {
+          const hourData = hours.find(([h]) => h === hour);
+          return { Boro: borough, Vol: hourData ? hourData[1] : 0 };
+        });
+
+        yScale.domain([0, d3.max(filteredData, d => d.Vol)]);
+
+        yAxis.transition().call(d3.axisLeft(yScale).ticks(5));
+
+        const bars = g.selectAll(".bar")
+          .data(filteredData, d => d.Boro);
+
+        // Enter
+        bars.enter()
+          .append("rect")
+          .attr("class", "bar")
+          .attr("x", d => xScale(d.Boro))
+          .attr("y", d => yScale(d.Vol))
+          .attr("width", xScale.bandwidth())
+          .attr("height", d => height2 - yScale(d.Vol))
+          .attr("fill", d => {
+            // Example: Color based on borough
+            if (d.Boro === "Manhattan") return "#1f77b4"; // Blue
+            if (d.Boro === "Brooklyn") return "#ff7f0e"; // Orange
+            if (d.Boro === "Queens") return "#2ca02c"; // Green
+            if (d.Boro === "Bronx") return "#d62728"; // Red
+            if (d.Boro === "Staten Island") return "#9467bd"; // Purple
+            return "#ccc"; // Default color
+          })
+          .on("mouseover", (event, d) => {
+            tooltip.style("visibility", "visible")
+              .text(`Borough: ${d.Boro}, Volume: ${d.Vol}`);
+          })
+          .on("mousemove", event => {
+            tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
+          })
+          .on("mouseout", () => {
+            tooltip.style("visibility", "hidden");
+          });
+
+        // Update
+        bars.transition()
+          .attr("x", d => xScale(d.Boro))
+          .attr("y", d => yScale(d.Vol))
+          .attr("height", d => height2 - yScale(d.Vol));
+
+        // Exit
+        bars.exit().remove();
+      };
+
+      // Handle dropdown change
+      dropdown.on("change", function () {
+        const selectedHour = +this.value;
+        updateChart(selectedHour);
+      });
+
+      // Initial render
+      updateChart(hours[0]);
+    };
+
+    render2();
+  </script>
+
+
 </body>
 
-</html> 
+</html>
