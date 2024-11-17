@@ -53,6 +53,24 @@
       margin-top: 10px;
       margin-bottom: 10px;
     }
+
+    #time-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px; 
+      margin-top: 10px;
+    }
+
+    #time-controls label {
+      margin-right: 10px;
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px; 
+    }
+
   </style>
 </head>
 
@@ -78,6 +96,24 @@
       <svg id="range-slider" width="400" height="50"></svg>
       <span id="range-values">Range: 25 - 100</span>
     </div>
+    <div id="time-controls">
+      <div class="slider-container">
+        <label for="time-slider">Time of Day:</label>
+        <input type="range" id="time-slider" min="0" max="23" value="0">
+        <span id="time-value">12 AM</span>
+      </div>
+      <div class="slider-container">
+        <label for="day-slider">Day of Week:</label>
+        <input type="range" id="day-slider" min="0" max="6" value="0">
+        <span id="day-value">Sunday</span>
+      </div>
+      <div class="slider-container">
+        <label for="month-slider">Month:</label>
+        <input type="range" id="month-slider" min="0" max="11" value="0">
+        <span id="month-value">January</span>
+      </div>
+    </div>
+    
   </div>
 
   <div class="title">Traffic Congestion by Borough in 2022</div>
@@ -90,11 +126,20 @@
   </div>
   <svg id="chart" width="900" height="500"></svg>
 
+  
+  </div>
+  
   <script>
     const svg = d3.select("#nyc-map");
     const width = svg.attr("width");
     const height = svg.attr("height");
+    let selectedTime = 0;
+    let selectedDay = 0;
+    let selectedMonth = 0;
     let selectedBoroughPath;
+    const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const parseDateTime = d3.timeParse("%Y-%m-%d %H:%M:%S");
 
     const sliderSvg = d3.select("#range-slider");
     const sliderWidth = sliderSvg.attr("width");
@@ -162,11 +207,21 @@
       const updateAccidents = () => {
         const selectedVehicleType = d3.select("#vehicle-type-select").property("value");
         const selectedBorough = d3.select("#borough-select").property("value");
-
-        const filteredCollisions = collisions.filter(d =>
-          (selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType) &&
-          (selectedBorough === 'all' || d.Borough === selectedBorough)
-        );
+        const filteredCollisions = collisions.filter(d => {
+          const dateTimeString = `${d['Date']} ${d['Time']}`;
+          const accidentTime = parseDateTime(dateTimeString); 
+          if (!accidentTime) return false;
+          const hour = accidentTime.getHours();
+          const day = accidentTime.getDay();
+          const month = accidentTime.getMonth();
+          return (
+            (selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType) &&
+            (hour === selectedTime ||
+            day === selectedDay ||
+            month === selectedMonth) && (
+            (selectedBorough === 'all' || d.Borough === selectedBorough))
+          );
+        });
 
         const accidentCounts = d3.rollups(
           filteredCollisions,
@@ -217,6 +272,25 @@
       };
 
       d3.select("#vehicle-type-select").on("change", () => {
+        updateAccidents();
+      });
+
+      d3.select("#time-slider").on("input", function() {
+        selectedTime = +this.value;
+        console.log(selectedTime)
+        d3.select("#time-value").text(`${selectedTime % 12 === 0 ? 12 : selectedTime % 12} ${selectedTime < 12 ? "AM" : "PM"}`);
+        updateAccidents();
+      });
+
+      d3.select("#day-slider").on("input", function() {
+        selectedDay = +this.value;
+        d3.select("#day-value").text(daysOfWeek[selectedDay]);
+        updateAccidents();
+      });
+
+      d3.select("#month-slider").on("input", function() {
+        selectedMonth = +this.value;
+        d3.select("#month-value").text(months[selectedMonth]);
         updateAccidents();
       });
 
