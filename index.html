@@ -90,7 +90,6 @@
   </div>
   <svg id="chart" width="900" height="500"></svg>
 
-
   <script>
     const svg = d3.select("#nyc-map");
     const width = svg.attr("width");
@@ -217,7 +216,9 @@
         dots.exit().remove();
       };
 
-      d3.select("#vehicle-type-select").on("change", updateAccidents);
+      d3.select("#vehicle-type-select").on("change", () => {
+        updateAccidents();
+      });
 
       const zoom = d3.zoom().on("zoom", (event) => {
         svg.selectAll('path').attr('transform', event.transform);
@@ -234,13 +235,11 @@
           height / 2 - scale * (y0 + y1) / 2
         ];
 
-        // Zoom to the selected borough
         svg.transition().duration(750).call(
           zoom.transform,
           d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
         );
 
-        // Highlight the selected borough
         if (selectedBoroughPath) {
           selectedBoroughPath.classed("highlighted", false);
         }
@@ -266,6 +265,7 @@
           const boroughPath = svg.selectAll(".borough").filter(d => d.properties.boro_name === selectedBorough);
           if (borough) zoomToBorough(borough, boroughPath);
         }
+        updateAccidents();
       });
 
       const handleMin = sliderSvg.append("circle")
@@ -309,18 +309,15 @@
       };
 
       updateRangeValues();
-
-
       updateAccidents();
     };
 
     render();
   </script>
 
-
   <script>
     const svg2 = d3.select("#chart");
-    const margin = { top: 50, right: 30, bottom: 70, left: 60 }; // Increased bottom margin for borough labels
+    const margin = { top: 50, right: 30, bottom: 70, left: 60 };
     const width2 = svg2.attr("width") - margin.left - margin.right;
     const height2 = svg2.attr("height") - margin.top - margin.bottom;
 
@@ -335,8 +332,8 @@
       const data = await d3.csv("Volume_Counts.csv");
 
       data.forEach(d => {
-        d.HH = +d.HH; // Hour
-        d.Vol = +d.Vol; // Volume
+        d.HH = +d.HH;
+        d.Vol = +d.Vol;
       });
 
       const aggregatedData = d3.rollups(
@@ -358,7 +355,7 @@
 
       const xScale = d3.scaleBand()
         .domain(boroughs)
-        .range([10, width2]) // Add 10px padding at the start
+        .range([10, width2])
         .padding(0.2);
 
       const yScale = d3.scaleLinear()
@@ -378,7 +375,6 @@
         .attr("text-anchor", "middle")
         .text("Borough");
 
-      // Add Y-axis label
       g.append("text")
         .attr("class", "axis-label")
         .attr("x", -height2 / 2)
@@ -407,12 +403,12 @@
           .attr("width", xScale.bandwidth())
           .attr("height", d => height2 - yScale(d.Vol))
           .attr("fill", d => {
-            if (d.Boro === "Manhattan") return "#1f77b4"; // Blue
-            if (d.Boro === "Brooklyn") return "#ff7f0e"; // Orange
-            if (d.Boro === "Queens") return "#2ca02c"; // Green
-            if (d.Boro === "Bronx") return "#d62728"; // Red
-            if (d.Boro === "Staten Island") return "#9467bd"; // Purple
-            return "#ccc"; // Default color
+            if (d.Boro === "Manhattan") return "#1f77b4";
+            if (d.Boro === "Brooklyn") return "#ff7f0e";
+            if (d.Boro === "Queens") return "#2ca02c";
+            if (d.Boro === "Bronx") return "#d62728";
+            if (d.Boro === "Staten Island") return "#9467bd";
+            return "#ccc";
           })
           .on("mouseover", (event, d) => {
             tooltip.style("visibility", "visible")
