@@ -57,8 +57,6 @@
 </head>
 
 <body>
-
-  <!-- First Chart: NYC Traffic Accidents -->
   <div class="title">NYC Traffic Accidents in 2022</div>
   <div class="subtitle">Interactive map showing total accidents that happened in each borough</div>
   <svg id="nyc-map" height="600" width="800"></svg>
@@ -76,13 +74,12 @@
       </select>
     </div>
     <div>
-      <label>Minimum Accidents: </label>
-      <input type="range" id="min-accidents-slider" min="0" max="100" value="25">
-      <span id="min-accidents-value">25</span>
+      <label>Accident Range: </label>
+      <svg id="range-slider" width="400" height="50"></svg>
+      <span id="range-values">Range: 25 - 100</span>
     </div>
   </div>
 
-  <!-- Second Chart: Congestion by Borough -->
   <div class="title">Traffic Congestion by Borough in 2022</div>
   <div class="subtitle">Bar chart showing congestion levels for each borough by selected time</div>
   <div id="controls-congestion">
@@ -98,8 +95,29 @@
     const svg = d3.select("#nyc-map");
     const width = svg.attr("width");
     const height = svg.attr("height");
-    let minAccidents = 25;
     let selectedBoroughPath;
+
+    const sliderSvg = d3.select("#range-slider");
+    const sliderWidth = sliderSvg.attr("width");
+    const sliderHeight = sliderSvg.attr("height");
+    const sliderMargin = 20;
+    const sliderMin = 0;
+    const sliderMax = 525;
+    let minAccidents = 25;
+    let maxAccidents = 100;
+
+    const xScale = d3.scaleLinear()
+      .domain([sliderMin, sliderMax])
+      .range([sliderMargin, sliderWidth - sliderMargin])
+      .clamp(true);
+
+    sliderSvg.append("line")
+      .attr("x1", xScale(sliderMin))
+      .attr("x2", xScale(sliderMax))
+      .attr("y1", sliderHeight / 2)
+      .attr("y2", sliderHeight / 2)
+      .attr("stroke", "#ccc")
+      .attr("stroke-width", 5);
 
     const render = async () => {
       const boroughs = await d3.json('nyc_boroughs.topo.json');
@@ -144,15 +162,18 @@
 
       const updateAccidents = () => {
         const selectedVehicleType = d3.select("#vehicle-type-select").property("value");
+        const selectedBorough = d3.select("#borough-select").property("value");
+
         const filteredCollisions = collisions.filter(d =>
-          (selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType)
+          (selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType) &&
+          (selectedBorough === 'all' || d.Borough === selectedBorough)
         );
 
         const accidentCounts = d3.rollups(
           filteredCollisions,
           v => v.length,
           d => d['Street Name']
-        ).filter(([_, count]) => count >= minAccidents);
+        ).filter(([_, count]) => count >= minAccidents && count <= maxAccidents);
 
         const accidentsWithCoords = accidentCounts.map(([street, count]) => {
           const point = filteredCollisions.find(d => d['Street Name'] === street);
@@ -161,17 +182,15 @@
               street: street,
               count: count,
               coordinates: [point.Longitude, point.Latitude],
-              borough: point.Borough // Add borough property
+              borough: point.Borough
             };
           }
         }).filter(d => d && d.count && d.coordinates);
 
-
         const dots = svg.selectAll(".dot")
           .data(accidentsWithCoords, d => d.street);
 
-        dots.enter()
-          .append("circle")
+        dots.join("circle")
           .attr("class", "dot")
           .attr("cx", d => projection(d.coordinates)[0])
           .attr("cy", d => projection(d.coordinates)[1])
@@ -190,7 +209,8 @@
             tooltip.style("visibility", "hidden");
           });
 
-        dots.attr("cx", d => projection(d.coordinates)[0])
+        dots.transition()
+          .attr("cx", d => projection(d.coordinates)[0])
           .attr("cy", d => projection(d.coordinates)[1])
           .attr("r", d => Math.sqrt(d.count));
 
@@ -198,12 +218,6 @@
       };
 
       d3.select("#vehicle-type-select").on("change", updateAccidents);
-
-      d3.select("#min-accidents-slider").on("input", function () {
-        minAccidents = +this.value;
-        d3.select("#min-accidents-value").text(minAccidents);
-        updateAccidents();
-      });
 
       const zoom = d3.zoom().on("zoom", (event) => {
         svg.selectAll('path').attr('transform', event.transform);
@@ -233,18 +247,16 @@
         selectedBoroughPath = boroughPath;
         selectedBoroughPath.classed("highlighted", true);
 
-        // Show only circles within the selected borough
         const boroughName = borough.properties.boro_name;
         svg.selectAll(".dot")
           .style("visibility", d => d.borough === boroughName ? "visible" : "hidden");
       };
 
-      // Reset visibility when zooming out
       d3.select("#borough-select").on("change", function () {
         const selectedBorough = this.value;
         if (selectedBorough === "all") {
           svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
-          svg.selectAll(".dot").style("visibility", "visible"); // Show all dots
+          svg.selectAll(".dot").style("visibility", "visible");
           if (selectedBoroughPath) {
             selectedBoroughPath.classed("highlighted", false);
             selectedBoroughPath = null;
@@ -255,6 +267,49 @@
           if (borough) zoomToBorough(borough, boroughPath);
         }
       });
+
+      const handleMin = sliderSvg.append("circle")
+        .attr("cx", xScale(minAccidents))
+        .attr("cy", sliderHeight / 2)
+        .attr("r", 8)
+        .attr("fill", "#036ffc")
+        .attr("class", "slider-handle")
+        .call(d3.drag()
+          .on("drag", function (event) {
+            const newValue = Math.round(xScale.invert(event.x));
+            if (newValue < maxAccidents && newValue >= sliderMin) {
+              minAccidents = newValue;
+              console.log(`new min: ${minAccidents}`)
+              d3.select(this).attr("cx", xScale(minAccidents));
+              updateRangeValues();
+              updateAccidents();
+            }
+          }));
+
+      const handleMax = sliderSvg.append("circle")
+        .attr("cx", xScale(maxAccidents))
+        .attr("cy", sliderHeight / 2)
+        .attr("r", 8)
+        .attr("fill", "#036ffc")
+        .attr("class", "slider-handle")
+        .call(d3.drag()
+          .on("drag", function (event) {
+            const newValue = Math.round(xScale.invert(event.x));
+            if (newValue > minAccidents && newValue <= sliderMax) {
+              maxAccidents = newValue;
+              console.log(`new max: ${maxAccidents}`)
+              d3.select(this).attr("cx", xScale(maxAccidents));
+              updateRangeValues();
+              updateAccidents();
+            }
+          }));
+
+      const updateRangeValues = () => {
+        d3.select("#range-values").text(`Range: ${minAccidents} - ${maxAccidents}`);
+      };
+
+      updateRangeValues();
+
 
       updateAccidents();
     };
