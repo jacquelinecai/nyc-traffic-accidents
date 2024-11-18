@@ -120,8 +120,8 @@
   <div class="subtitle">Bar chart showing congestion levels for each borough by selected time</div>
   <div id="controls-congestion">
     <div>
-      <label for="time-dropdown">Select Time of Day: </label>
-      <select id="time-dropdown"></select>
+      <label for="date-picker">Select a Date: </label>
+      <input type="date" id="date-picker">
     </div>
   </div>
   <svg id="chart" width="900" height="500"></svg>
@@ -403,34 +403,82 @@
       .attr("class", "tooltip");
 
     const render2 = async () => {
-      const data = await d3.csv("Volume_Counts.csv");
+      const volumeData = await d3.csv("Volume_Counts.csv");
+      const accidentData = await d3.csv("NYC_Collisions.csv");
 
-      data.forEach(d => {
-        d.HH = +d.HH;
+      volumeData.forEach(d => {
+        const year = d.Yr;
+        const month = d.M.padStart(2, "0");
+        const day = d.D.padStart(2, "0");
+        d.Date = `${year}-${month}-${day}`;
         d.Vol = +d.Vol;
       });
 
-      const aggregatedData = d3.rollups(
-        data,
+      const aggregatedVolume = d3.rollups(
+        volumeData,
         v => d3.sum(v, d => d.Vol),
         d => d.Boro,
-        d => d.HH
+        d => d.Date
       );
 
-      const boroughs = Array.from(new Set(data.map(d => d.Boro)));
-      const hours = Array.from(new Set(data.map(d => d.HH))).sort((a, b) => a - b);
+      const aggregatedAccidents = d3.rollups(
+        accidentData,
+        v => v.length,
+        d => d.Borough,
+        d => d.Date
+      );
 
-      const dropdown = d3.select("#time-dropdown");
-      dropdown.selectAll("option")
-        .data(hours)
-        .join("option")
-        .attr("value", d => d)
-        .text(d => `${d}:00`);
+      console.log(aggregatedVolume)
+      console.log(aggregatedAccidents)
+
+      const boroughs = Array.from(new Set(volumeData.map(d => d.Boro)));
+      const dates = Array.from(new Set(volumeData.map(d => d.Date))).sort();
+
+      const combinedData = boroughs.map(borough => {
+        const data = dates.map(date => {
+          const volumeEntry = aggregatedVolume.find(([b, d]) => {
+            if (b === borough && Array.isArray(d)) {
+              return d.some(dateData => dateData[0] === date);
+            }
+            return false;
+          });
+
+          const congestion = volumeEntry
+            ? (volumeEntry[1].find(dateData => dateData[0] === date) || [])[1] || 0
+            : 0;
+
+          const accidentEntry = aggregatedAccidents.find(([b, h]) => {
+            if (b === borough && Array.isArray(h)) {
+              return h.some(dateData => dateData[0] === date);
+            }
+            return false;
+          });
+
+          const accidents = accidentEntry
+            ? (accidentEntry[1].find(dateData => dateData[0] === date) || [])[1] || 0
+            : 0;
+
+          return { date, congestion, accidents };
+        });
+        return { borough, data };
+      });
+
+      console.log(combinedData)
+
+      d3.select("#date-picker")
+        .attr("min", dates[0])
+        .attr("max", dates[dates.length - 1])
+        .property("value", dates[0]);
 
       const xScale = d3.scaleBand()
         .domain(boroughs)
         .range([10, width2])
         .padding(0.2);
+
+      const xSubScale = d3.scaleBand()
+        .domain(["Congestion", "Accidents"])
+        .range([0, xScale.bandwidth()])
+        .padding(0.1);
 
       const yScale = d3.scaleLinear()
         .range([height2, 0]);
@@ -455,38 +503,41 @@
         .attr("y", -margin.left + 12)
         .attr("transform", "rotate(-90)")
         .attr("text-anchor", "middle")
-        .text("Volume (Car Congestion)");
+        .text("Volume of People");
 
-      const updateChart = hour => {
-        const filteredData = aggregatedData.map(([borough, hours]) => {
-          const hourData = hours.find(([h]) => h === hour);
-          return { Boro: borough, Vol: hourData ? hourData[1] : 0 };
+      const updateChart = selectedDate => {
+        const filteredData = combinedData.map(({ borough, data }) => {
+          const dateData = data.find(d => d.date === selectedDate) || {};
+          return {
+            borough,
+            congestion: dateData.congestion || 0,
+            accidents: dateData.accidents || 0
+          };
         });
 
-        yScale.domain([0, d3.max(filteredData, d => d.Vol)]);
+        yScale.domain([0, d3.max(filteredData, d => Math.max(d.congestion, d.accidents))]);
 
         yAxis.transition().call(d3.axisLeft(yScale).ticks(5));
 
-        const bars = g.selectAll(".bar")
-          .data(filteredData, d => d.Boro);
+        const groups = g.selectAll(".bar-group")
+          .data(filteredData, d => d.borough);
 
-        bars.join("rect")
-          .attr("class", "bar")
-          .attr("x", d => xScale(d.Boro))
-          .attr("y", d => yScale(d.Vol))
-          .attr("width", xScale.bandwidth())
-          .attr("height", d => height2 - yScale(d.Vol))
-          .attr("fill", d => {
-            if (d.Boro === "Manhattan") return "#1f77b4";
-            if (d.Boro === "Brooklyn") return "#ff7f0e";
-            if (d.Boro === "Queens") return "#2ca02c";
-            if (d.Boro === "Bronx") return "#d62728";
-            if (d.Boro === "Staten Island") return "#9467bd";
-            return "#ccc";
-          })
+        const enterGroups = groups.enter()
+          .append("g")
+          .attr("class", "bar-group")
+          .attr("transform", d => `translate(${xScale(d.borough)}, 0)`);
+
+        enterGroups.append("rect")
+          .merge(groups.select(".congestion-bar"))
+          .attr("class", "bar congestion-bar")
+          .attr("x", d => xSubScale("Congestion"))
+          .attr("y", d => yScale(d.congestion))
+          .attr("width", xSubScale.bandwidth())
+          .attr("height", d => height2 - yScale(d.congestion))
+          .attr("fill", "#1f77b4")
           .on("mouseover", (event, d) => {
             tooltip.style("visibility", "visible")
-              .text(` Volume: ${d.Vol}`);
+              .text(`Congestion: ${d.congestion}`);
           })
           .on("mousemove", event => {
             tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
@@ -495,25 +546,38 @@
             tooltip.style("visibility", "hidden");
           });
 
-        bars.transition()
-          .attr("x", d => xScale(d.Boro))
-          .attr("y", d => yScale(d.Vol))
-          .attr("height", d => height2 - yScale(d.Vol));
+        enterGroups.append("rect")
+          .merge(groups.select(".accidents-bar"))
+          .attr("class", "bar accidents-bar")
+          .attr("x", d => xSubScale("Accidents"))
+          .attr("y", d => yScale(d.accidents))
+          .attr("width", xSubScale.bandwidth())
+          .attr("height", d => height2 - yScale(d.accidents))
+          .attr("fill", "#d62728")
+          .on("mouseover", (event, d) => {
+            tooltip.style("visibility", "visible")
+              .text(`Accidents: ${d.accidents}`);
+          })
+          .on("mousemove", event => {
+            tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
+          })
+          .on("mouseout", () => {
+            tooltip.style("visibility", "hidden");
+          });
 
-        bars.exit().remove();
+        groups.exit().remove();
       };
 
-      dropdown.on("change", function () {
-        const selectedHour = +this.value;
-        updateChart(selectedHour);
+      d3.select("#date-picker").on("input", function () {
+        const selectedDate = this.value;
+        updateChart(selectedDate);
       });
 
-      updateChart(hours[0]);
+      updateChart(dates[0]);
     };
 
     render2();
   </script>
-
 
 </body>
 
