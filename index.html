@@ -5,116 +5,147 @@
   <script src="https://d3js.org/topojson.v3.min.js"></script>
   <style>
     body {
-      font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
-      margin-left: 40px;
-    }
+  font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+  margin-left: 40px;
+}
 
-    .borough {
-      fill: #bdc3c7;
-      stroke: #2c3e50;
-      stroke-width: 1px;
-    }
+.borough {
+  fill: #bdc3c7;
+  stroke: #2c3e50;
+  stroke-width: 1px;
+}
 
-    .dot {
-      fill: #036ffc;
-      opacity: 0.7;
-    }
+.dot {
+  fill: #036ffc;
+  opacity: 0.7;
+}
 
-    .highlighted {
-      fill: #a8e6cf;
-      stroke: #8fc5b1;
-      stroke-width: 2px;
-    }
+.highlighted {
+  fill: #a8e6cf;
+  stroke: #8fc5b1;
+  stroke-width: 2px;
+}
 
-    .tooltip {
-      position: absolute;
-      visibility: hidden;
-      padding: 5px;
-      background-color: #fff;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 12px;
-      pointer-events: none;
-      white-space: nowrap;
-    }
+.tooltip {
+  position: absolute;
+  visibility: hidden;
+  padding: 5px;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
 
-    .title {
-      font-size: 20px;
-      font-weight: bold;
-      margin-top: 50px;
-      margin-bottom: 10px;
-    }
+.title {
+  font-size: 20px;
+  font-weight: bold;
+  margin-top: 50px;
+  margin-bottom: 10px;
+}
 
-    .subtitle {
-      margin-bottom: 20px;
-    }
+.subtitle {
+  margin-bottom: 20px;
+}
 
-    select {
-      margin-top: 10px;
-      margin-bottom: 10px;
-    }
+select {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
 
-    #time-controls {
-      display: flex;
-      flex-direction: column;
-      gap: 10px; 
-      margin-top: 10px;
-    }
+.container {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 10px; 
+}
 
-    #time-controls label {
-      margin-right: 10px;
-    }
+#nyc-map {
+  width: 800px;
+  height: 600px;
+  flex-shrink: 0;
+  margin-right: 20px; 
+}
 
-    .slider-container {
-      display: flex;
-      align-items: center;
-      gap: 10px; 
-    }
+.filters-sidebar {
+  width: 350px; 
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
+#time-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; 
+  margin-top: 10px;
+}
+
+#time-controls label {
+  margin-right: 10px;
+}
+
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 10px; 
+}
+
+.filters-sidebar label {
+  display: block;
+  margin-bottom: 5px;
+}
   </style>
 </head>
 
 <body>
   <div class="title">NYC Traffic Accidents in 2022</div>
   <div class="subtitle">Interactive map showing total accidents that happened in each borough</div>
-  <svg id="nyc-map" height="600" width="800"></svg>
-  <div id="controls-traffic">
-    <div>
-      <label>Select Borough: </label>
-      <select id="borough-select">
-        <option value="all">All</option>
-      </select>
+  <div id="container" style="display: flex; height: 100vh;">
+    <!-- Map Section -->
+    <div style="flex-grow: 1;">
+      <svg id="nyc-map" height="600" width="800"></svg>
     </div>
-    <div>
-      <label>Select Vehicle Type: </label>
-      <select id="vehicle-type-select">
-        <option value="all">All</option>
-      </select>
-    </div>
-    <div>
-      <label>Accident Range: </label>
-      <svg id="range-slider" width="400" height="50"></svg>
-      <span id="range-values">Range: 25 - 100</span>
-    </div>
-    <div id="time-controls">
-      <div class="slider-container">
-        <label for="time-slider">Time of Day:</label>
-        <input type="range" id="time-slider" min="0" max="23" value="0">
-        <span id="time-value">12 AM</span>
+  
+    <!-- Controls Section -->
+    <div id="controls-traffic" style="width: 300px; padding: 20px; overflow-y: auto; background-color: #f8f9fa; box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);">
+      <div>
+        <label>Select Borough: </label>
+        <select id="borough-select">
+          <option value="all">All</option>
+        </select>
       </div>
-      <div class="slider-container">
-        <label for="day-slider">Day of Week:</label>
-        <input type="range" id="day-slider" min="0" max="6" value="0">
-        <span id="day-value">Sunday</span>
+      <div>
+        <label>Select Vehicle Type: </label>
+        <select id="vehicle-type-select">
+          <option value="all">All</option>
+        </select>
       </div>
-      <div class="slider-container">
-        <label for="month-slider">Month:</label>
-        <input type="range" id="month-slider" min="0" max="11" value="0">
-        <span id="month-value">January</span>
+      <div>
+        <label>Accident Range: </label>
+        <svg id="range-slider" width="280" height="50"></svg>
+        <span id="range-values">Range: 25 - 100</span>
+      </div>
+      <div id="time-controls">
+        <div class="slider-container" style="margin-bottom: 20px;">
+          <label for="time-slider">Time of Day:</label>
+          <input type="range" id="time-slider" min="0" max="23" value="0" style="width: 100%;">
+          <span id="time-value">12 AM</span>
+        </div>
+        <div class="slider-container" style="margin-bottom: 20px;">
+          <label for="day-slider">Day of Week:</label>
+          <input type="range" id="day-slider" min="0" max="6" value="0" style="width: 100%;">
+          <span id="day-value">Sunday</span>
+        </div>
+        <div class="slider-container">
+          <label for="month-slider">Month:</label>
+          <input type="range" id="month-slider" min="0" max="11" value="0" style="width: 100%;">
+          <span id="month-value">January</span>
+        </div>
       </div>
     </div>
-    
   </div>
+  
 
   <div class="title">Traffic Congestion by Borough in 2022</div>
   <div class="subtitle">Bar chart showing congestion levels for each borough by selected time</div>
@@ -503,7 +534,7 @@
         .attr("y", -margin.left + 12)
         .attr("transform", "rotate(-90)")
         .attr("text-anchor", "middle")
-        .text("Volume of People");
+        .text("Volume of Cars");
 
       const updateChart = selectedDate => {
         const filteredData = combinedData.map(({ borough, data }) => {
