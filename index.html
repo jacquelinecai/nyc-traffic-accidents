@@ -5,96 +5,103 @@
   <script src="https://d3js.org/topojson.v3.min.js"></script>
   <style>
     body {
-  font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
-  margin-left: 40px;
-}
+      font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+      margin-left: 40px;
+    }
 
-.borough {
-  fill: #bdc3c7;
-  stroke: #2c3e50;
-  stroke-width: 1px;
-}
+    .borough {
+      fill: #bdc3c7;
+      stroke: #2c3e50;
+      stroke-width: 1px;
+    }
 
-.dot {
-  fill: #036ffc;
-  opacity: 0.7;
-}
+    .dot {
+      fill: #036ffc;
+      opacity: 0.7;
+    }
 
-.highlighted {
-  fill: #a8e6cf;
-  stroke: #8fc5b1;
-  stroke-width: 2px;
-}
+    .highlighted {
+      fill: #a8e6cf;
+      stroke: #8fc5b1;
+      stroke-width: 2px;
+    }
 
-.tooltip {
-  position: absolute;
-  visibility: hidden;
-  padding: 5px;
-  background-color: #fff;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 12px;
-  pointer-events: none;
-  white-space: nowrap;
-}
+    .tooltip {
+      position: absolute;
+      visibility: hidden;
+      padding: 5px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      pointer-events: none;
+      white-space: nowrap;
+    }
 
-.title {
-  font-size: 20px;
-  font-weight: bold;
-  margin-top: 50px;
-  margin-bottom: 10px;
-}
+    .title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-top: 50px;
+      margin-bottom: 10px;
+    }
 
-.subtitle {
-  margin-bottom: 20px;
-}
+    .subtitle {
+      margin-bottom: 20px;
+    }
 
-select {
-  margin-top: 10px;
-  margin-bottom: 10px;
-}
+    select {
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
 
-.container {
-  display: flex;
-  align-items: flex-start;
-  margin-top: 10px; 
-}
+    .container {
+      display: flex;
+      align-items: flex-start;
+      margin-top: 10px;
+    }
 
-#nyc-map {
-  width: 800px;
-  height: 600px;
-  flex-shrink: 0;
-  margin-right: 20px; 
-}
+    #time-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
 
-.filters-sidebar {
-  width: 350px; 
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
+    #nyc-map {
+      width: 800px;
+      height: 600px;
+      flex-shrink: 0;
+      margin-right: 20px;
+    }
 
-#time-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 10px; 
-  margin-top: 10px;
-}
+    .filters-sidebar {
+      width: 350px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
 
-#time-controls label {
-  margin-right: 10px;
-}
+    #time-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
 
-.slider-container {
-  display: flex;
-  align-items: center;
-  gap: 10px; 
-}
+    #time-controls label {
+      margin-right: 10px;
+    }
 
-.filters-sidebar label {
-  display: block;
-  margin-bottom: 5px;
-}
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .filters-sidebar label {
+      display: block;
+      margin-bottom: 5px;
+    }
   </style>
 </head>
 
@@ -106,9 +113,10 @@ select {
     <div style="flex-grow: 1;">
       <svg id="nyc-map" height="600" width="800"></svg>
     </div>
-  
+
     <!-- Controls Section -->
-    <div id="controls-traffic" style="width: 300px; padding: 20px; overflow-y: auto; background-color: #f8f9fa; box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);">
+    <div id="controls-traffic"
+      style="width: 300px; padding: 20px; overflow-y: auto; background-color: #f8f9fa; box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);">
       <div>
         <label>Select Borough: </label>
         <select id="borough-select">
@@ -144,8 +152,9 @@ select {
         </div>
       </div>
     </div>
+    <<<<<<< HEAD=======>>>>>>> eba07c1 (Scale congestion numbers)
   </div>
-  
+
 
   <div class="title">Traffic Congestion by Borough in 2022</div>
   <div class="subtitle">Bar chart showing congestion levels for each borough by selected time</div>
@@ -157,9 +166,9 @@ select {
   </div>
   <svg id="chart" width="900" height="500"></svg>
 
-  
+
   </div>
-  
+
   <script>
     const svg = d3.select("#nyc-map");
     const width = svg.attr("width");
@@ -240,7 +249,7 @@ select {
         const selectedBorough = d3.select("#borough-select").property("value");
         const filteredCollisions = collisions.filter(d => {
           const dateTimeString = `${d['Date']} ${d['Time']}`;
-          const accidentTime = parseDateTime(dateTimeString); 
+          const accidentTime = parseDateTime(dateTimeString);
           if (!accidentTime) return false;
           const hour = accidentTime.getHours();
           const day = accidentTime.getDay();
@@ -248,9 +257,9 @@ select {
           return (
             (selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType) &&
             (hour === selectedTime ||
-            day === selectedDay ||
-            month === selectedMonth) && (
-            (selectedBorough === 'all' || d.Borough === selectedBorough))
+              day === selectedDay ||
+              month === selectedMonth) && (
+              (selectedBorough === 'all' || d.Borough === selectedBorough))
           );
         });
 
@@ -306,20 +315,20 @@ select {
         updateAccidents();
       });
 
-      d3.select("#time-slider").on("input", function() {
+      d3.select("#time-slider").on("input", function () {
         selectedTime = +this.value;
         console.log(selectedTime)
         d3.select("#time-value").text(`${selectedTime % 12 === 0 ? 12 : selectedTime % 12} ${selectedTime < 12 ? "AM" : "PM"}`);
         updateAccidents();
       });
 
-      d3.select("#day-slider").on("input", function() {
+      d3.select("#day-slider").on("input", function () {
         selectedDay = +this.value;
         d3.select("#day-value").text(daysOfWeek[selectedDay]);
         updateAccidents();
       });
 
-      d3.select("#month-slider").on("input", function() {
+      d3.select("#month-slider").on("input", function () {
         selectedMonth = +this.value;
         d3.select("#month-value").text(months[selectedMonth]);
         updateAccidents();
@@ -537,11 +546,12 @@ select {
         .text("Volume of Cars");
 
       const updateChart = selectedDate => {
+        const scalingFactor = 100;
         const filteredData = combinedData.map(({ borough, data }) => {
           const dateData = data.find(d => d.date === selectedDate) || {};
           return {
             borough,
-            congestion: dateData.congestion || 0,
+            congestion: (dateData.congestion || 0) / scalingFactor,
             accidents: dateData.accidents || 0
           };
         });
@@ -568,7 +578,7 @@ select {
           .attr("fill", "#1f77b4")
           .on("mouseover", (event, d) => {
             tooltip.style("visibility", "visible")
-              .text(`Congestion: ${d.congestion}`);
+              .text(`Congestion (scaled): ${d.congestion * scalingFactor}`);
           })
           .on("mousemove", event => {
             tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
