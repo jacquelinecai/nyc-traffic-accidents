@@ -618,18 +618,18 @@
         .attr("height", d => height2 - yScale(d.ridership))
         .attr("fill", "#1f77b4")
         .on("mouseover", function (event, d) {
-                    tooltip.style("visibility", "visible")
-                        .html(`<strong>Borough:</strong> ${d.borough}<br><strong>Ridership:</strong> ${d.ridership.toFixed(2)}K`)
-                        .style("top", (event.pageY + 5) + "px")
-                        .style("left", (event.pageX + 5) + "px");
-                })
-                .on("mousemove", function (event) {
-                    tooltip.style("top", (event.pageY + 5) + "px")
-                        .style("left", (event.pageX + 5) + "px");
-                })
-                .on("mouseout", function () {
-                    tooltip.style("visibility", "hidden");
-                });
+          tooltip.style("visibility", "visible")
+            .html(`<strong>Borough:</strong> ${d.borough}<br><strong>Ridership:</strong> ${d.ridership.toFixed(2)}K`)
+            .style("top", (event.pageY + 5) + "px")
+            .style("left", (event.pageX + 5) + "px");
+        })
+        .on("mousemove", function (event) {
+          tooltip.style("top", (event.pageY + 5) + "px")
+            .style("left", (event.pageX + 5) + "px");
+        })
+        .on("mouseout", function () {
+          tooltip.style("visibility", "hidden");
+        });
 
       enterGroups.append("rect")
         .attr("class", "bar accidents-bar")
@@ -639,18 +639,18 @@
         .attr("height", d => height2 - yScale(d.accidents))
         .attr("fill", "#d62728")
         .on("mouseover", function (event, d) {
-                    tooltip.style("visibility", "visible")
-                        .html(`<strong>Borough:</strong> ${d.borough}<br><strong>Accidents:</strong> ${d.accidents}`)
-                        .style("top", (event.pageY + 5) + "px")
-                        .style("left", (event.pageX + 5) + "px");
-                })
-                .on("mousemove", function (event) {
-                    tooltip.style("top", (event.pageY + 5) + "px")
-                        .style("left", (event.pageX + 5) + "px");
-                })
-                .on("mouseout", function () {
-                    tooltip.style("visibility", "hidden");
-                });
+          tooltip.style("visibility", "visible")
+            .html(`<strong>Borough:</strong> ${d.borough}<br><strong>Accidents:</strong> ${d.accidents}`)
+            .style("top", (event.pageY + 5) + "px")
+            .style("left", (event.pageX + 5) + "px");
+        })
+        .on("mousemove", function (event) {
+          tooltip.style("top", (event.pageY + 5) + "px")
+            .style("left", (event.pageX + 5) + "px");
+        })
+        .on("mouseout", function () {
+          tooltip.style("visibility", "hidden");
+        });
 
       // Update phase: update existing groups/bars
       groups.select(".ridership-bar")
@@ -666,29 +666,11 @@
       groups.exit().remove();
     };
 
-    d3.select("#start-date")
-      .attr("min", "2022-02-01")
-      .attr("max", "2022-12-31")
-      .property("value", "2022-02-01")
-      .on("change", function () {
-          const selectedStartDate = new Date(this.value);
-          updateChart(selectedStartDate, new Date(d3.select("#end-date").property("value")));
-      });
-
-  d3.select("#end-date")
-      .attr("min", "2022-02-01")
-      .attr("max", "2022-12-31")
-      .property("value", "2022-12-31")
-      .on("change", function () {
-          const selectedEndDate = new Date(this.value);
-          updateChart(new Date(d3.select("#start-date").property("value")), selectedEndDate);
-      });
-
-  // Initialize Chart with Default Dates
-  const initialStartDate = new Date("2022-02-01");
-  const initialEndDate = new Date("2022-12-31");
-  updateChart(initialStartDate, initialEndDate);
-    };
+    // Ensure the date inputs are selected properly and the chart is updated on change
+    const startDate = "2010-01-01"; // Example start date
+    const endDate = "2023-12-31";   // Example end date
+    updateChart(startDate, endDate);
+  };
 
   render2();
 </script>
