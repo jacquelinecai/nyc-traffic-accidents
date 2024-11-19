@@ -490,7 +490,6 @@
       const ridershipData = await d3.csv("Subway_Ridership.csv");
       const accidentData = await d3.csv("NYC_Collisions.csv");
 
-      // Borough mapping
       const boroughMap = {
         BK: "BROOKLYN",
         M: "MANHATTAN",
@@ -499,7 +498,7 @@
       };
 
       ridershipData.forEach(d => {
-        d.Date = d.transit_timestamp.split(" ")[0].trim(); // Extract the date
+        d.Date = d.transit_timestamp.split(" ")[0].trim();
         d.Borough = (boroughMap[d.borough.toUpperCase()] || "UNKNOWN").toUpperCase();
         d.Ridership = +d.ridership;
       });
@@ -612,7 +611,6 @@
             tooltip.style("visibility", "hidden");
           });
 
-        // Accidents Bars
         enterGroups.append("rect")
           .merge(groups.select(".accidents-bar"))
           .attr("class", "bar accidents-bar")
@@ -635,27 +633,21 @@
         groups.exit().remove();
       };
 
-      // Restrict date picker to range: February 1 to December 31
       d3.select("#date-picker")
         .attr("min", "2022-02-01")
         .attr("max", "2022-12-31")
-        .property("value", "2022-02-01") // Set default value to start of range
+        .property("value", "2022-02-01")
         .on("change", function () {
-          const selectedDate = this.value; // Get selected date
+          const selectedDate = this.value;
           updateChart(selectedDate);
         });
 
-      // Initialize the chart
-      const initialDate = "2022-02-01"; // Default to start of range
+      const initialDate = "2022-02-01";
       updateChart(initialDate);
     };
 
     render2();
   </script>
-
-
-
-
 </body>
 
 </html>
