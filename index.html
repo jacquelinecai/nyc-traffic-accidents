@@ -177,8 +177,11 @@
     <input type="month" id="date-picker">
   </div> -->
   <div>
-    <label for="date-picker">Select Date:</label>
-    <input type="date" id="date-picker" />
+    <label for="start-date">Start Date:</label>
+    <input type="date" id="start-date">
+
+    <label for="end-date">End Date:</label>
+    <input type="date" id="end-date">
 
     <!-- <label for="time-picker">Select Hour:</label>
     <select id="time-picker">
@@ -575,17 +578,37 @@
         .attr("text-anchor", "middle")
         .text("Volume");
 
-      const updateChart = (selectedDate) => {
-        const data = aggregateData(selectedDate);
+        const updateChart = (startDate, endDate) => {
+        // Parse the start and end dates
+        const start = new Date(startDate);
+        const end = new Date(endDate);
 
-        console.log("Aggregated Data:", data);
+        // Filter ridership data within the date range
+        const filteredRidership = ridershipData.filter(d => {
+          const date = new Date(d.Date);
+          return date >= start && date <= end;
+        });
 
-        yScale.domain([0, d3.max(data, d => Math.max(d.ridership, d.accidents)) || 1]);
+        // Filter accident data within the date range
+        const filteredAccidents = accidentData.filter(d => {
+          const date = new Date(d.Date);
+          return date >= start && date <= end;
+        });
+
+        // Aggregate data for the selected date range
+        const aggregatedData = ["BROOKLYN", "BRONX", "MANHATTAN", "QUEENS"].map(borough => {
+          const ridership = d3.sum(filteredRidership.filter(d => d.Borough === borough), d => d.Ridership) / 1000;
+          const accidents = d3.sum(filteredAccidents.filter(d => d.Borough === borough), d => aggregatedAccidentsMap.get(`${borough}-${d.Date}`) || 0);
+          return { borough, ridership, accidents };
+        });
+
+        // Update the chart using the aggregated data
+        yScale.domain([0, d3.max(aggregatedData, d => Math.max(d.ridership, d.accidents)) || 1]);
 
         yAxis.transition().call(d3.axisLeft(yScale).ticks(5));
 
         const groups = g.selectAll(".bar-group")
-          .data(data, d => d.borough);
+          .data(aggregatedData, d => d.borough);
 
         const enterGroups = groups.enter()
           .append("g")
@@ -599,17 +622,7 @@
           .attr("y", d => yScale(d.ridership))
           .attr("width", xSubScale.bandwidth())
           .attr("height", d => height2 - yScale(d.ridership))
-          .attr("fill", "#1f77b4")
-          .on("mouseover", (event, d) => {
-            tooltip.style("visibility", "visible")
-              .text(`Ridership (Scaled by 1000): ${d.ridership * 1000}`);
-          })
-          .on("mousemove", event => {
-            tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
-          })
-          .on("mouseout", () => {
-            tooltip.style("visibility", "hidden");
-          });
+          .attr("fill", "#1f77b4");
 
         enterGroups.append("rect")
           .merge(groups.select(".accidents-bar"))
@@ -618,33 +631,36 @@
           .attr("y", d => yScale(d.accidents))
           .attr("width", xSubScale.bandwidth())
           .attr("height", d => height2 - yScale(d.accidents))
-          .attr("fill", "#d62728")
-          .on("mouseover", (event, d) => {
-            tooltip.style("visibility", "visible")
-              .text(`Accidents: ${d.accidents}`);
-          })
-          .on("mousemove", event => {
-            tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
-          })
-          .on("mouseout", () => {
-            tooltip.style("visibility", "hidden");
-          });
+          .attr("fill", "#d62728");
 
         groups.exit().remove();
       };
 
-      d3.select("#date-picker")
+      // Date Picker Event Listeners
+      d3.select("#start-date")
         .attr("min", "2022-02-01")
         .attr("max", "2022-12-31")
         .property("value", "2022-02-01")
         .on("change", function () {
-          const selectedDate = this.value;
-          updateChart(selectedDate);
+          const selectedStartDate = this.value;
+          updateChart(selectedStartDate, d3.select("#end-date").property("value"));
         });
 
-      const initialDate = "2022-02-01";
-      updateChart(initialDate);
-    };
+      d3.select("#end-date")
+        .attr("min", "2022-02-01")
+        .attr("max", "2022-12-31")
+        .property("value", "2022-12-31")
+        .on("change", function () {
+          const selectedEndDate = this.value;
+          updateChart(d3.select("#start-date").property("value"), selectedEndDate);
+        });
+
+      // Initialize Chart with Default Dates
+      const initialStartDate = "2022-02-01";
+      const initialEndDate = "2022-12-31";
+      updateChart(initialStartDate, initialEndDate);
+          }
+
 
     render2();
   </script>
