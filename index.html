@@ -158,11 +158,18 @@
 
   <div class="title">Traffic Congestion by Borough in 2022</div>
   <div class="subtitle">Bar chart showing congestion levels for each borough by selected time</div>
-  <div id="controls-congestion">
+  <!-- <div id="controls-congestion">
     <div>
       <label for="date-picker">Select a Date: </label>
       <input type="date" id="date-picker">
     </div>
+  </div> -->
+  <div>
+    <label for="borough-selector">Select Borough:</label>
+    <select id="borough-selector">
+      <option value="All">All Boroughs</option>
+    </select>
+    <input type="month" id="date-picker">
   </div>
   <svg id="chart" width="900" height="500"></svg>
 
@@ -429,7 +436,7 @@
     render();
   </script>
 
-  <script>
+  <!-- <script>
     const svg2 = d3.select("#chart");
     const margin = { top: 50, right: 30, bottom: 70, left: 60 };
     const width2 = svg2.attr("width") - margin.left - margin.right;
@@ -618,7 +625,245 @@
     };
 
     render2();
-  </script>
+  </script> -->
+  <script>
+    const svg2 = d3.select("#chart");
+    const margin = { top: 50, right: 30, bottom: 70, left: 60 };
+    const width2 = svg2.attr("width") - margin.left - margin.right;
+    const height2 = svg2.attr("height") - margin.top - margin.bottom;
+  
+    const g = svg2.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+  
+    const tooltip = d3.select("body")
+      .append("div")
+      .attr("id", "tooltip")
+      .attr("class", "tooltip");
+  
+    const render2 = async () => {
+      const volumeData = await d3.csv("Volume_Counts.csv");
+      const accidentData = await d3.csv("NYC_Collisions.csv");
+  
+      volumeData.forEach(d => {
+        d.Boro = d.Boro;
+        d.MonthYear = `${d.Yr}-${d.M.padStart(2, "0")}`;
+        d.Vol = +d.Vol; // Convert volume to a number
+      });
+      accidentData.forEach(d => {
+        d.Borough = d.Borough;
+        const date = new Date(d.Date);
+        const year = date.getFullYear();
+        const month = `${date.getMonth() + 1}`.padStart(2, "0");
+        d.MonthYear = `${year}-${month}`;
+      });
+  
+      // Aggregate volume data
+      const aggregatedVolume = d3.rollups(
+        volumeData,
+        v => d3.sum(v, d => d.Vol),
+        d => d.Boro,
+        d => d.MonthYear
+      );
+      console.log("Aggregated Volume Data:", aggregatedVolume);
+  
+      // Aggregate accident data
+      const aggregatedAccidents = d3.rollups(
+        accidentData,
+        v => v.length,
+        d => d.Borough,
+        d => d.MonthYear
+      );
+      console.log("Aggregated Accident Data:", aggregatedAccidents);
+  
+      // Extract unique boroughs and months
+      const boroughs = Array.from(new Set(volumeData.map(d => d.Boro)));
+      const months = Array.from(new Set(volumeData.map(d => d.MonthYear))).sort();
+      console.log("Boroughs:", boroughs);
+      console.log("Months:", months);
+  
+      // Combine data for congestion and accidents
+      const combinedData = boroughs.map(borough => {
+        const data = months.map(monthYear => {
+          // Find matching entries
+          const volumeEntry = aggregatedVolume.find(([b, d]) => {
+            if (b === borough && Array.isArray(d)) {
+              return d.some(monthData => monthData[0] === monthYear);
+            }
+            return false;
+          });
+
+          const congestion = volumeEntry
+            ? (volumeEntry[1].find(monthData => monthData[0] === monthYear) || [])[1] || 0
+            : 0;
+
+            const accidentEntry = aggregatedAccidents.find(([b, h]) => {
+            if (b === borough && Array.isArray(h)) {
+              return h.some(monthData => monthData[0] === monthYear);
+            }
+              return false;
+            });
+
+            const accidents = accidentEntry
+            ? (accidentEntry[1].find(monthData => monthData[0] === monthYear) || [])[1] || 0
+            : 0;
+          // Log matching results
+          console.log(`Checking Borough: ${borough}, MonthYear: ${monthYear}`);
+          console.log("Volume Entry:", volumeEntry);
+          console.log("Accident Entry:", accidentEntry);
+
+          // Extract values or use 0 if no match
+          // const congestion = volumeEntry ? volumeEntry[1] : 0;
+          // const accidents = accidentEntry ? accidentEntry[1] : 0;
+
+          console.log(`Borough: ${borough}, MonthYear: ${monthYear}, Congestion: ${congestion}, Accidents: ${accidents}`);
+
+          return { monthYear, congestion, accidents };
+        });
+        return { borough, data };
+      });
+
+      console.log("Combined Data:", combinedData);
+  
+      // Populate borough selector
+      const selector = d3.select("#borough-selector");
+      selector.selectAll("option")
+        .data(["All", ...boroughs])
+        .enter()
+        .append("option")
+        .attr("value", d => d)
+        .text(d => d.charAt(0).toUpperCase() + d.slice(1)); // Capitalize borough names
+  
+      // Set up date picker
+      d3.select("#date-picker")
+        .attr("min", months[0])
+        .attr("max", months[months.length - 1])
+        .property("value", months[0]);
+  
+      // Scales and axes
+      const xScale = d3.scaleBand()
+        .domain(boroughs)
+        .range([10, width2])
+        .padding(0.2);
+  
+      const xSubScale = d3.scaleBand()
+        .domain(["Congestion", "Accidents"])
+        .range([0, xScale.bandwidth()])
+        .padding(0.1);
+  
+      const yScale = d3.scaleLinear().range([height2, 0]);
+  
+      const xAxis = g.append("g")
+        .attr("transform", `translate(0, ${height2})`)
+        .call(d3.axisBottom(xScale));
+  
+      const yAxis = g.append("g")
+        .call(d3.axisLeft(yScale));
+  
+      g.append("text")
+        .attr("class", "axis-label")
+        .attr("x", width2 / 2)
+        .attr("y", height2 + margin.bottom - 15)
+        .attr("text-anchor", "middle")
+        .text("Borough");
+  
+      g.append("text")
+        .attr("class", "axis-label")
+        .attr("x", -height2 / 2)
+        .attr("y", -margin.left + 12)
+        .attr("transform", "rotate(-90)")
+        .attr("text-anchor", "middle")
+        .text("Volume of Cars");
+  
+      const updateChart = selectedMonthYear => {
+        const selectedBorough = selector.property("value");
+        console.log("Selected Borough:", selectedBorough);
+        console.log("Selected MonthYear:", selectedMonthYear);
+  
+        let filteredData = combinedData;
+        if (selectedBorough !== "All") {
+          filteredData = combinedData.filter(d => d.borough === selectedBorough);
+        }
+  
+        console.log("Filtered Data:", filteredData);
+  
+        const scalingFactor = 100;
+        const dataToDisplay = filteredData.map(({ borough, data }) => {
+          const monthData = data.find(d => d.monthYear === selectedMonthYear) || {};
+          return {
+            borough,
+            congestion: (monthData.congestion || 0) / scalingFactor,
+            accidents: monthData.accidents || 0
+          };
+        });
+  
+        yScale.domain([0, d3.max(dataToDisplay, d => Math.max(d.congestion, d.accidents))]);
+        yAxis.transition().call(d3.axisLeft(yScale).ticks(5));
+  
+        const groups = g.selectAll(".bar-group")
+          .data(dataToDisplay, d => d.borough);
+  
+        const enterGroups = groups.enter()
+          .append("g")
+          .attr("class", "bar-group")
+          .attr("transform", d => `translate(${xScale(d.borough)}, 0)`);
+  
+        enterGroups.append("rect")
+          .merge(groups.select(".congestion-bar"))
+          .attr("class", "bar congestion-bar")
+          .attr("x", d => xSubScale("Congestion"))
+          .attr("y", d => yScale(d.congestion))
+          .attr("width", xSubScale.bandwidth())
+          .attr("height", d => height2 - yScale(d.congestion))
+          .attr("fill", "#1f77b4")
+          .on("mouseover", (event, d) => {
+            tooltip.style("visibility", "visible")
+              .text(`Congestion (scaled): ${d.congestion * scalingFactor}`);
+          })
+          .on("mousemove", event => {
+            tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
+          })
+          .on("mouseout", () => {
+            tooltip.style("visibility", "hidden");
+          });
+  
+        enterGroups.append("rect")
+          .merge(groups.select(".accidents-bar"))
+          .attr("class", "bar accidents-bar")
+          .attr("x", d => xSubScale("Accidents"))
+          .attr("y", d => yScale(d.accidents))
+          .attr("width", xSubScale.bandwidth())
+          .attr("height", d => height2 - yScale(d.accidents))
+          .attr("fill", "#d62728")
+          .on("mouseover", (event, d) => {
+            tooltip.style("visibility", "visible")
+              .text(`Accidents: ${d.accidents}`);
+          })
+          .on("mousemove", event => {
+            tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
+          })
+          .on("mouseout", () => {
+            tooltip.style("visibility", "hidden");
+          });
+  
+        groups.exit().remove();
+      };
+  
+      // Event listeners for selector and date picker
+      selector.on("change", () => {
+        const selectedMonthYear = d3.select("#date-picker").property("value");
+        updateChart(selectedMonthYear);
+      });
+  
+      d3.select("#date-picker").on("input", function () {
+        const selectedMonthYear = this.value;
+        updateChart(selectedMonthYear);
+      });
+  
+      updateChart(months[0]);
+    };
+  
+    render2();
+  </script>   
+  
 
 </body>
 
