@@ -164,54 +164,12 @@
 
   <div class="title">Subway Ridership vs. Accidents by Borough in 2022</div>
   <div class="subtitle">Bar chart showing subway ridership levels vs. accidents for each borough by selected date</div>
-  <!-- <div id="controls-congestion">
-    <div>
-      <label for="date-picker">Select a Date: </label>
-      <input type="date" id="date-picker">
-    </div>
-  </div> -->
-  <!-- <div>
-    <label for="borough-selector">Select Borough:</label>
-    <select id="borough-selector">
-      <option value="All">All Boroughs</option>
-    </select>
-    <input type="month" id="date-picker">
-  </div> -->
   <div>
     <label for="start-date">Start Date:</label>
-    <input type="date" id="start-date" min="2022-02-01" max="2022-12-31">
-
+    <input type="date" id="start-date" min="2022-02-01" max="2022-12-31" value="2022-02-01">
+    
     <label for="end-date">End Date:</label>
-    <input type="date" id="end-date" min="2022-02-01" max="2022-12-31">
-
-
-    <!-- <label for="time-picker">Select Hour:</label>
-    <select id="time-picker">
-        <option value="00">00:00</option>
-        <option value="01">01:00</option>
-        <option value="02">02:00</option>
-        <option value="03">03:00</option>
-        <option value="04">04:00</option>
-        <option value="05">05:00</option>
-        <option value="06">06:00</option>
-        <option value="07">07:00</option>
-        <option value="08">08:00</option>
-        <option value="09">09:00</option>
-        <option value="10">10:00</option>
-        <option value="11">11:00</option>
-        <option value="12">12:00</option>
-        <option value="13">13:00</option>
-        <option value="14">14:00</option>
-        <option value="15">15:00</option>
-        <option value="16">16:00</option>
-        <option value="17">17:00</option>
-        <option value="18">18:00</option>
-        <option value="19">19:00</option>
-        <option value="20">20:00</option>
-        <option value="21">21:00</option>
-        <option value="22">22:00</option>
-        <option value="23">23:00</option>
-    </select> -->
+    <input type="date" id="end-date" min="2022-02-01" max="2022-12-31" value="2022-02-07">
   </div>
   <svg id="chart" width="900" height="500"></svg>
 
@@ -397,18 +355,6 @@
         updateAccidents();
       });
 
-      // d3.select("#day-slider").on("input", function () {
-      //   selectedDay = +this.value;
-      //   d3.select("#day-value").text(daysOfWeek[selectedDay]);
-      //   updateAccidents();
-      // });
-
-      // d3.select("#month-slider").on("input", function () {
-      //   selectedMonth = +this.value;
-      //   d3.select("#month-value").text(months[selectedMonth]);
-      //   updateAccidents();
-      // });
-
       const zoom = d3.zoom().on("zoom", (event) => {
         svg.selectAll('path').attr('transform', event.transform);
         svg.selectAll('circle').attr('transform', event.transform);
@@ -545,28 +491,18 @@
         }
       });
 
-      const aggregatedAccidents = d3.rollups(
-        accidentData,
-        v => v.length,
-        d => d.Borough,
-        d => d.Date
-      );
-
-      const aggregatedAccidentsMap = new Map();
-      aggregatedAccidents.forEach(([borough, dates]) => {
-        dates.forEach(([date, count]) => {
-          const key = `${borough}-${date}`;
-          aggregatedAccidentsMap.set(key, count);
-        });
-      });
-
-      const aggregateData = (selectedDate) => {
-        const filteredRidership = ridershipData.filter(d => d.Date === selectedDate);
+      const aggregateData = (startDate, endDate) => {
+        const filteredRidership = ridershipData.filter(d => d.Date >= startDate && d.Date <= endDate);
 
         const boroughs = ["BROOKLYN", "BRONX", "MANHATTAN", "QUEENS"];
         const aggregated = boroughs.map(borough => {
           const ridership = d3.sum(filteredRidership.filter(d => d.Borough === borough), d => d.Ridership) / 1000;
-          const accidents = aggregatedAccidentsMap.get(`${borough}-${selectedDate}`) || 0;
+
+          const accidents = d3.sum(
+            accidentData.filter(d => d.Borough === borough && d.Date >= startDate && d.Date <= endDate),
+            d => 1
+          );
+
           return { borough, ridership, accidents };
         });
 
@@ -606,108 +542,135 @@
         .attr("transform", "rotate(-90)")
         .attr("text-anchor", "middle")
         .text("Volume");
+      
+      const legend = svg2.append("g")
+        .attr("transform", `translate(${width2 - 200}, ${margin.top})`); // Adjusted position to move it left
+
+      // Add box for the legend
+      legend.append("rect")
+        .attr("x", -10)
+        .attr("y", -23)
+        .attr("width", 200) 
+        .attr("height", 100) 
+        .attr("fill", "#f9f9f9") 
+        .attr("stroke", "#ccc") 
+        .attr("stroke-width", 1)
+        .attr("rx", 5) 
+        .attr("ry", 5);
+
+      // Add legend title
+      legend.append("text")
+        .attr("x", 0)
+        .attr("y", -3)
+        .text("Legend")
+        .style("font-size", "14px")
+        .style("font-weight", "bold")
+        .attr("alignment-baseline", "middle");
+
+      // Add Ridership rectangle and label
+      legend.append("rect")
+        .attr("x", 0)
+        .attr("y", 10)
+        .attr("width", 20)
+        .attr("height", 20)
+        .attr("fill", "#1f77b4");
+
+      legend.append("text")
+        .attr("x", 30)
+        .attr("y", 25)
+        .text("Ridership (Scaled by 1000)")
+        .style("font-size", "12px")
+        .attr("alignment-baseline", "middle");
+
+      // Add Accidents rectangle and label
+      legend.append("rect")
+        .attr("x", 0)
+        .attr("y", 40)
+        .attr("width", 20)
+        .attr("height", 20)
+        .attr("fill", "#d62728");
+
+      legend.append("text")
+        .attr("x", 30)
+        .attr("y", 55)
+        .text("Accidents")
+        .style("font-size", "12px")
+        .attr("alignment-baseline", "middle");
 
       const updateChart = (startDate, endDate) => {
-        // Parse the start and end dates
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        const data = aggregateData(startDate, endDate);
 
-        // Filter ridership data within the date range
-        const filteredRidership = ridershipData.filter(d => {
-          const date = new Date(d.Date);
-          return date >= start && date <= end;
-        });
+        console.log("Aggregated Data:", data);
 
-        // Filter accident data within the date range
-        const filteredAccidents = accidentData.filter(d => {
-          const date = new Date(d.Date);
-          return date >= start && date <= end;
-        });
+        yScale.domain([0, d3.max(data, d => Math.max(d.ridership, d.accidents)) || 1]);
 
-        // Aggregate data for the selected date range
-        const aggregatedData = ["BROOKLYN", "BRONX", "MANHATTAN", "QUEENS"].map(borough => {
-          const ridership = d3.sum(filteredRidership.filter(d => d.Borough === borough), d => d.Ridership) / 1000;
-          const accidents = d3.sum(filteredAccidents.filter(d => d.Borough === borough), d => aggregatedAccidentsMap.get(`${borough}-${d.Date}`) || 0);
-          return { borough, ridership, accidents };
-        });
+        yAxis.transition().call(d3.axisLeft(yScale).ticks(5));
 
-        // Update the y-scale domain to fit the new data range
-        yScale.domain([0, d3.max(aggregatedData, d => Math.max(d.ridership, d.accidents)) || 1]);
-
-        yAxis.transition().duration(500).call(d3.axisLeft(yScale).ticks(5));
-
-        // Bind the data to the groups (bars)
         const groups = g.selectAll(".bar-group")
-          .data(aggregatedData, d => d.borough);
+          .data(data, d => d.borough);
 
-        // Enter phase: add new groups for new data
         const enterGroups = groups.enter()
           .append("g")
           .attr("class", "bar-group")
           .attr("transform", d => `translate(${xScale(d.borough)}, 0)`);
 
-        // Append new bars for ridership and accidents
         enterGroups.append("rect")
+          .merge(groups.select(".ridership-bar"))
           .attr("class", "bar ridership-bar")
           .attr("x", d => xSubScale("Ridership"))
           .attr("y", d => yScale(d.ridership))
           .attr("width", xSubScale.bandwidth())
           .attr("height", d => height2 - yScale(d.ridership))
           .attr("fill", "#1f77b4")
-          .on("mouseover", function (event, d) {
+          .on("mouseover", (event, d) => {
             tooltip.style("visibility", "visible")
-              .html(`<strong>Borough:</strong> ${d.borough}<br><strong>Ridership:</strong> ${d.ridership.toFixed(2)}K`)
-              .style("top", (event.pageY + 5) + "px")
-              .style("left", (event.pageX + 5) + "px");
+              .text(`Ridership (Scaled by 1000): ${d.ridership * 1000}`);
           })
-          .on("mousemove", function (event) {
-            tooltip.style("top", (event.pageY + 5) + "px")
-              .style("left", (event.pageX + 5) + "px");
+          .on("mousemove", event => {
+            tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
           })
-          .on("mouseout", function () {
+          .on("mouseout", () => {
             tooltip.style("visibility", "hidden");
           });
 
         enterGroups.append("rect")
+          .merge(groups.select(".accidents-bar"))
           .attr("class", "bar accidents-bar")
           .attr("x", d => xSubScale("Accidents"))
           .attr("y", d => yScale(d.accidents))
           .attr("width", xSubScale.bandwidth())
           .attr("height", d => height2 - yScale(d.accidents))
           .attr("fill", "#d62728")
-          .on("mouseover", function (event, d) {
+          .on("mouseover", (event, d) => {
             tooltip.style("visibility", "visible")
-              .html(`<strong>Borough:</strong> ${d.borough}<br><strong>Accidents:</strong> ${d.accidents}`)
-              .style("top", (event.pageY + 5) + "px")
-              .style("left", (event.pageX + 5) + "px");
+              .text(`Accidents: ${d.accidents}`);
           })
-          .on("mousemove", function (event) {
-            tooltip.style("top", (event.pageY + 5) + "px")
-              .style("left", (event.pageX + 5) + "px");
+          .on("mousemove", event => {
+            tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
           })
-          .on("mouseout", function () {
+          .on("mouseout", () => {
             tooltip.style("visibility", "hidden");
           });
-
-        // Update phase: update existing groups/bars
-        groups.select(".ridership-bar")
-          .transition().duration(500)
-          .attr("y", d => yScale(d.ridership))
-          .attr("height", d => height2 - yScale(d.ridership));
-
-        groups.select(".accidents-bar")
-          .transition().duration(500)
-          .attr("y", d => yScale(d.accidents))
-          .attr("height", d => height2 - yScale(d.accidents));
 
         groups.exit().remove();
       };
 
-      // Ensure the date inputs are selected properly and the chart is updated on change
-      const startDate = "2010-01-01"; // Example start date
-      const endDate = "2023-12-31";   // Example end date
-      updateChart(startDate, endDate);
+      const startDateInput = d3.select("#start-date");
+      const endDateInput = d3.select("#end-date");
+
+      const updateChartFromInputs = () => {
+        const startDate = startDateInput.property("value");
+        const endDate = endDateInput.property("value");
+        updateChart(startDate, endDate);
+      };
+
+      startDateInput.on("change", updateChartFromInputs);
+      endDateInput.on("change", updateChartFromInputs);
+
+      // Initial rendering with default range
+      updateChart("2022-02-01", "2022-02-07");
     };
+
 
     render2();
   </script>
