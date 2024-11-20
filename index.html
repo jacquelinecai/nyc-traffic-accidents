@@ -146,11 +146,12 @@
           <input type="range" id="time-slider" min="0" max="23" value="0">
           <span id="time-value">12 AM</span>
         </div>
-        <div id="date-filter">
-          <label for="start-date">Start Date:</label>
-          <input type="date" id="start-date" />
-          <label for="end-date">End Date:</label>
-          <input type="date" id="end-date" />
+        <div>
+          <label for="start-date-picker">Start Date:</label>
+          <input type="date" id="start-date-picker" min="2022-01-01" max="2022-12-31" value="2022-01-01">
+          
+          <label for="end-date-picker">End Date:</label>
+          <input type="date" id="end-date-picker" min="2022-01-01" max="2022-12-31" value="2022-12-31">
         </div>
       </div>
     </div>
@@ -218,8 +219,14 @@
     const width = svg.attr("width");
     const height = svg.attr("height");
     let selectedTime = 0;
+    // let selectedDate = "2022-01-01";
+    // let selectedDay = 0;
+    // let selectedMonth = 0;
+    let startDate = "2022-01-01"; 
+    let endDate = "2022-12-31";  
     let selectedBoroughPath;
-
+    const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const parseDateTime = d3.timeParse("%Y-%m-%d %H:%M:%S");
 
     const sliderSvg = d3.select("#range-slider");
@@ -246,7 +253,9 @@
 
     const render = async () => {
       const boroughs = await d3.json('nyc_boroughs.topo.json');
+      console.log(boroughs)
       const boroughsFeature = topojson.feature(boroughs, boroughs.objects.nyc_boroughs);
+      console.log(boroughsFeature)
 
       const collisions = await d3.csv('NYC_Collisions.csv');
 
@@ -283,42 +292,38 @@
 
       const tooltip = d3.select("#tooltip");
 
-      const dateParse = d3.timeParse("%Y-%m-%d"); // Adjust the format if needed
-      const dateFormat = d3.timeFormat("%Y-%m-%d");
-
-      let minDate = d3.min(collisions, d => dateParse(d['Date']));
-      let maxDate = d3.max(collisions, d => dateParse(d['Date']));
-
-      d3.select("#date-min").attr("min", dateFormat(minDate)).attr("max", dateFormat(maxDate)).attr("value", dateFormat(minDate));
-      d3.select("#date-max").attr("min", dateFormat(minDate)).attr("max", dateFormat(maxDate)).attr("value", dateFormat(maxDate));
-
       const updateAccidents = () => {
+        console.log("Updating accidents...");
         const selectedVehicleType = d3.select("#vehicle-type-select").property("value");
         const selectedBorough = d3.select("#borough-select").property("value");
-        const selectedMinDate = dateParse(d3.select("#date-min").property("value"));
-        const selectedMaxDate = dateParse(d3.select("#date-max").property("value"));
 
         const filteredCollisions = collisions.filter(d => {
           const dateTimeString = `${d['Date']} ${d['Time']}`;
           const accidentTime = parseDateTime(dateTimeString);
-          if (!accidentTime) return false;  // Make sure that accidents with missing or invalid times are excluded
+          if (!accidentTime) return false;
 
+          const date = accidentTime.toISOString().split('T')[0];
+          console.log(date)
           const hour = accidentTime.getHours();
+
           return (
             (selectedVehicleType === 'all' || d['Vehicle Type'] === selectedVehicleType) &&
-            hour === selectedTime &&
-            (selectedBorough === 'all' || d.Borough === selectedBorough) &&
-            accidentTime >= selectedMinDate && accidentTime <= selectedMaxDate
+            (hour === selectedTime) &&
+            (date >= startDate && date <= endDate) &&
+            (selectedBorough === 'all' || d.Borough === selectedBorough)
           );
         });
+          console.log("Filtered Collisions:", filteredCollisions);
 
-        console.log(filteredCollisions);  // Check if any accidents are filtered
+
 
         const accidentCounts = d3.rollups(
           filteredCollisions,
           v => v.length,
           d => d['Street Name']
         ).filter(([_, count]) => count >= minAccidents && count <= maxAccidents);
+
+        console.log("Accident Counts:", accidentCounts);
 
         const accidentsWithCoords = accidentCounts.map(([street, count]) => {
           const point = filteredCollisions.find(d => d['Street Name'] === street);
@@ -362,16 +367,38 @@
         dots.exit().remove();
       };
 
-
       d3.select("#vehicle-type-select").on("change", () => {
+        updateAccidents();
+      });
+
+      d3.select("#start-date-picker").on("change", function () {
+        startDate = this.value;
+        updateAccidents();
+      });
+
+      d3.select("#end-date-picker").on("change", function () {
+        endDate = this.value;
         updateAccidents();
       });
 
       d3.select("#time-slider").on("input", function () {
         selectedTime = +this.value;
+        console.log(selectedTime)
         d3.select("#time-value").text(`${selectedTime % 12 === 0 ? 12 : selectedTime % 12} ${selectedTime < 12 ? "AM" : "PM"}`);
         updateAccidents();
       });
+
+      // d3.select("#day-slider").on("input", function () {
+      //   selectedDay = +this.value;
+      //   d3.select("#day-value").text(daysOfWeek[selectedDay]);
+      //   updateAccidents();
+      // });
+
+      // d3.select("#month-slider").on("input", function () {
+      //   selectedMonth = +this.value;
+      //   d3.select("#month-value").text(months[selectedMonth]);
+      //   updateAccidents();
+      // });
 
       const zoom = d3.zoom().on("zoom", (event) => {
         svg.selectAll('path').attr('transform', event.transform);
@@ -432,6 +459,7 @@
             const newValue = Math.round(xScale.invert(event.x));
             if (newValue < maxAccidents && newValue >= sliderMin) {
               minAccidents = newValue;
+              console.log(`new min: ${minAccidents}`)
               d3.select(this).attr("cx", xScale(minAccidents));
               updateRangeValues();
               updateAccidents();
@@ -449,6 +477,7 @@
             const newValue = Math.round(xScale.invert(event.x));
             if (newValue > minAccidents && newValue <= sliderMax) {
               maxAccidents = newValue;
+              console.log(`new max: ${maxAccidents}`)
               d3.select(this).attr("cx", xScale(maxAccidents));
               updateRangeValues();
               updateAccidents();
@@ -456,8 +485,7 @@
           }));
 
       const updateRangeValues = () => {
-        d3.select("#range-min").text(minAccidents);
-        d3.select("#range-max").text(maxAccidents);
+        d3.select("#range-values").text(`Range: ${minAccidents} - ${maxAccidents}`);
       };
 
       updateRangeValues();
@@ -465,7 +493,7 @@
     };
 
     render();
-</script>
+  </script>
 
 
 <script>
