@@ -197,9 +197,11 @@
     let minAccidents = 0;
     let maxAccidents = 100;
 
+    // Sets "Show all times" checkbox as checked and disable the time slider initially
     d3.select("#all-times-checkbox").property("checked", true);
     d3.select("#time-slider").property("disabled", true);
 
+    // X-scale for the accident range slider
     const xScale = d3.scaleLinear()
       .domain([sliderMin, sliderMax])
       .range([sliderMargin, sliderWidth - sliderMargin])
@@ -213,11 +215,10 @@
       .attr("stroke", "#ccc")
       .attr("stroke-width", 5);
 
+    // Main render function to initialize the map and load data
     const render = async () => {
       const boroughs = await d3.json('nyc_boroughs.topo.json');
-      console.log(boroughs)
       const boroughsFeature = topojson.feature(boroughs, boroughs.objects.nyc_boroughs);
-      console.log(boroughsFeature)
 
       const collisions = await d3.csv('NYC_Collisions.csv');
 
@@ -226,6 +227,7 @@
 
       const path = d3.geoPath().projection(projection);
 
+      // Populate borough dropdown
       d3.select("#borough-select")
         .selectAll("option.borough-option")
         .data(boroughsFeature.features)
@@ -234,6 +236,7 @@
         .attr("value", d => d.properties.boro_name)
         .text(d => d.properties.boro_name);
 
+      // Draw borough boundaries on the map
       svg.selectAll(".borough")
         .data(boroughsFeature.features)
         .join("path")
@@ -243,6 +246,7 @@
           zoomToBorough(d);
         });
 
+      // Populate vehicle type dropdown
       const vehicleTypes = [...new Set(collisions.map(d => d['Vehicle Type']))];
       d3.select("#vehicle-type-select")
         .selectAll("option.vehicle-option")
@@ -254,19 +258,19 @@
 
       const tooltip = d3.select("#tooltip");
 
+      // Update accidents based on filters
       const updateAccidents = () => {
-        console.log("Updating accidents...");
         const selectedVehicleType = d3.select("#vehicle-type-select").property("value");
         const selectedBorough = d3.select("#borough-select").property("value");
         const showAllTimes = d3.select("#all-times-checkbox").property("checked");
 
+        // Filter collisions based on the selected criteria users selected
         const filteredCollisions = collisions.filter(d => {
           const dateTimeString = `${d['Date']} ${d['Time']}`;
           const accidentTime = parseDateTime(dateTimeString);
           if (!accidentTime) return false;
 
           const date = accidentTime.toISOString().split('T')[0];
-          console.log(date)
           const hour = accidentTime.getHours();
 
           return (
@@ -276,16 +280,15 @@
             (showAllTimes || hour === selectedTime)
           );
         });
-        console.log("Filtered Collisions:", filteredCollisions);
 
+        // Aggregate collision data by street name
         const accidentCounts = d3.rollups(
           filteredCollisions,
           v => v.length,
           d => d['Street Name']
         ).filter(([_, count]) => count >= minAccidents && count <= maxAccidents);
 
-        console.log("Accident Counts:", accidentCounts);
-
+        // Map accidents to coordinates for display
         const accidentsWithCoords = accidentCounts.map(([street, count]) => {
           const point = filteredCollisions.find(d => d['Street Name'] === street);
           if (point && point.Latitude && point.Longitude) {
@@ -298,6 +301,7 @@
           }
         }).filter(d => d && d.count && d.coordinates);
 
+        // Render accident dots on the map
         const dots = svg.selectAll(".dot")
           .data(accidentsWithCoords, d => d.street);
 
@@ -350,7 +354,6 @@
 
       d3.select("#time-slider").on("input", function () {
         selectedTime = +this.value;
-        console.log(selectedTime)
         d3.select("#time-value").text(`${selectedTime % 12 === 0 ? 12 : selectedTime % 12} ${selectedTime < 12 ? "AM" : "PM"}`);
         updateAccidents();
       });
@@ -362,6 +365,7 @@
 
       svg.call(zoom);
 
+      // Function to zoom into a borough
       const zoomToBorough = (borough, boroughPath) => {
         const [[x0, y0], [x1, y1]] = path.bounds(borough);
         const scale = 0.8 / Math.max((x1 - x0) / width, (y1 - y0) / height);
@@ -387,22 +391,29 @@
       };
 
       d3.select("#borough-select").on("change", function () {
+        // If "all" is selected, reset zoom and show all accident dots
         const selectedBorough = this.value;
         if (selectedBorough === "all") {
           svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
           svg.selectAll(".dot").style("visibility", "visible");
+          // Remove highlight from previously selected borough
           if (selectedBoroughPath) {
             selectedBoroughPath.classed("highlighted", false);
             selectedBoroughPath = null;
           }
         } else {
           const borough = boroughsFeature.features.find(b => b.properties.boro_name === selectedBorough);
+
+          // Highlight and zoom into the selected borough
           const boroughPath = svg.selectAll(".borough").filter(d => d.properties.boro_name === selectedBorough);
           if (borough) zoomToBorough(borough, boroughPath);
         }
+
+        // Update accidents based on the new borough filter
         updateAccidents();
       });
 
+      // Create a draggable handle for the minimum accidents range slider
       const handleMin = sliderSvg.append("circle")
         .attr("cx", xScale(minAccidents))
         .attr("cy", sliderHeight / 2)
@@ -411,16 +422,21 @@
         .attr("class", "slider-handle")
         .call(d3.drag()
           .on("drag", function (event) {
+            // Update the min accidents value based on the drag position
             const newValue = Math.round(xScale.invert(event.x));
             if (newValue < maxAccidents && newValue >= sliderMin) {
               minAccidents = newValue;
-              console.log(`new min: ${minAccidents}`)
+
+              // Move the handle to the new positions
               d3.select(this).attr("cx", xScale(minAccidents));
+
+              // Update the range values and refresh the accident data
               updateRangeValues();
               updateAccidents();
             }
           }));
 
+      // Create a draggable handle for the maximum accidents range slider
       const handleMax = sliderSvg.append("circle")
         .attr("cx", xScale(maxAccidents))
         .attr("cy", sliderHeight / 2)
@@ -429,16 +445,21 @@
         .attr("class", "slider-handle")
         .call(d3.drag()
           .on("drag", function (event) {
+            // Update the max accidents value based on the drag position
             const newValue = Math.round(xScale.invert(event.x));
             if (newValue > minAccidents && newValue <= sliderMax) {
               maxAccidents = newValue;
-              console.log(`new max: ${maxAccidents}`)
+
+              // Move the handle to the new position
               d3.select(this).attr("cx", xScale(maxAccidents));
+
+              // Update the range values and refresh the accident data
               updateRangeValues();
               updateAccidents();
             }
           }));
 
+      // Updates the range being displayed to users
       const updateRangeValues = () => {
         d3.select("#range-values").text(`Range: ${minAccidents} - ${maxAccidents}`);
       };
@@ -484,14 +505,16 @@
 
     // Helper function to capitalize only the first letter of a string
     const capitalizeFirstLetter = (str) => {
-      if (!str) return ""; // Handle empty or null strings
+      if (!str) return "";
       return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
     };
 
+    // Main render function to load and process data
     const render2 = async () => {
       const ridershipData = await d3.csv("Subway_Ridership.csv");
       const accidentData = await d3.csv("NYC_Collisions.csv");
 
+      // Map for converting borough abbreviations to full names
       const boroughMap = {
         BK: "Brooklyn",
         M: "Manhattan",
@@ -501,24 +524,25 @@
 
       // Process ridership data
       ridershipData.forEach(d => {
-        d.Date = d.transit_timestamp.split(" ")[0].trim(); // Extract and clean the date
-        d.Borough = capitalizeFirstLetter(boroughMap[d.borough.toUpperCase()] || "Unknown"); // Capitalize first letter
-        d.Ridership = +d.ridership; // Convert ridership to a number
+        d.Date = d.transit_timestamp.split(" ")[0].trim();
+        d.Borough = capitalizeFirstLetter(boroughMap[d.borough.toUpperCase()] || "Unknown");
+        d.Ridership = +d.ridership;
       });
 
       // Process accident data
       accidentData.forEach(d => {
         if (d.Date) {
           d.Date = d.Date.trim(); // Clean the date
-          d.Borough = capitalizeFirstLetter(d.Borough || "Unknown"); // Capitalize first letter
+          d.Borough = capitalizeFirstLetter(d.Borough || "Unknown");
         } else {
-          console.warn("Missing Date field:", d); // Log missing dates for debugging
+          console.warn("Missing Date field:", d);
           d.Date = null;
         }
       });
 
-
+      // Aggregate data for a given date range
       const aggregateData = (startDate, endDate) => {
+        // Filter ridership data within the date range
         const filteredRidership = ridershipData.filter(d => d.Date >= startDate && d.Date <= endDate);
 
         const boroughs = ["Brooklyn", "Bronx", "Manhattan", "Queens"];
@@ -536,25 +560,30 @@
         return aggregated;
       };
 
+      // Set up scales for the chart
       const xScale = d3.scaleBand()
         .domain(["Brooklyn", "Bronx", "Manhattan", "Queens"])
         .range([10, width2])
         .padding(0.2);
 
       const xSubScale = d3.scaleBand()
-        .domain(["Ridership", "Accidents"])
+        .domain(["Ridership", "Accidents"]) // Subdomain for ridership and accidents
         .range([0, xScale.bandwidth()])
         .padding(0.1);
 
+      // Set up a linear scale for the y-axis
       const yScale = d3.scaleLinear().range([height2, 0]);
 
+      // Append the x-axis
       const xAxis = g.append("g")
         .attr("transform", `translate(0, ${height2})`)
         .call(d3.axisBottom(xScale));
 
+      // Append the y-axis
       const yAxis = g.append("g")
         .call(d3.axisLeft(yScale));
 
+      // Add x-axis label
       g.append("text")
         .attr("class", "axis-label")
         .attr("x", width2 / 2)
@@ -562,6 +591,7 @@
         .attr("text-anchor", "middle")
         .text("Borough");
 
+      // Add y-axis label
       g.append("text")
         .attr("class", "axis-label")
         .attr("x", -height2 / 2)
@@ -570,6 +600,7 @@
         .attr("text-anchor", "middle")
         .text("Volume");
 
+      // Add a legen to the chart
       const legend = svg2.append("g")
         .attr("transform", `translate(${width2 - 200}, ${margin.top})`); // Adjusted position to move it left
 
@@ -594,7 +625,7 @@
         .style("font-weight", "bold")
         .attr("alignment-baseline", "middle");
 
-      // Add Ridership rectangle and label
+      // Add legend items for ridership
       legend.append("rect")
         .attr("x", 0)
         .attr("y", 10)
@@ -602,6 +633,7 @@
         .attr("height", 20)
         .attr("fill", "#1f77b4");
 
+      // Add legend items for accidents
       legend.append("text")
         .attr("x", 30)
         .attr("y", 25)
@@ -624,23 +656,24 @@
         .style("font-size", "12px")
         .attr("alignment-baseline", "middle");
 
+      // Update chart function to render bars based on selected date range
       const updateChart = (startDate, endDate) => {
+        // Aggregate data for the selected date range
         const data = aggregateData(startDate, endDate);
-
-        console.log("Aggregated Data:", data);
 
         yScale.domain([0, d3.max(data, d => Math.max(d.ridership, d.accidents)) || 1]);
 
         yAxis.transition().call(d3.axisLeft(yScale).ticks(5));
 
         const groups = g.selectAll(".bar-group")
-          .data(data, d => d.borough);
+          .data(data, d => d.borough); // Bind data to bar groups
 
-        const enterGroups = groups.enter()
-          .append("g")
+        // Add ridership bars
+        const enterGroups = groups.join("g")
           .attr("class", "bar-group")
           .attr("transform", d => `translate(${xScale(d.borough)}, 0)`);
 
+        // Add accident bars
         enterGroups.append("rect")
           .merge(groups.select(".ridership-bar"))
           .attr("class", "bar ridership-bar")
@@ -682,10 +715,13 @@
         groups.exit().remove();
       };
 
-
+      // Select the start date input element
       const startDateInput = d3.select("#start-date");
+
+      // Select the end date input element
       const endDateInput = d3.select("#end-date");
 
+      // Function to update the chart when the user changes the date range
       const updateChartFromInputs = () => {
         const startDate = startDateInput.property("value");
         const endDate = endDateInput.property("value");
@@ -697,8 +733,6 @@
 
       // Initial rendering with default range
       updateChart("2022-02-01", "2022-02-07");
-
-
     };
 
     render2();
