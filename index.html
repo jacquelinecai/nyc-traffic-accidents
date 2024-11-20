@@ -309,7 +309,7 @@
           .on("mouseover", function (event, d) {
             d3.select(this).style("fill", "#25d6fa");
             tooltip.style("visibility", "visible")
-              .text(`Accidents: ${d.count}, Street: ${d.street}`);
+              .html(`Accidents: ${d.count}<br>Street: ${d.street}`);
           })
           .on("mousemove", function (event) {
             tooltip.style("top", `${event.pageY + 10}px`)
@@ -482,37 +482,46 @@
       .attr("id", "tooltip")
       .attr("class", "tooltip");
 
+    // Helper function to capitalize only the first letter of a string
+    const capitalizeFirstLetter = (str) => {
+      if (!str) return ""; // Handle empty or null strings
+      return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+    };
+
     const render2 = async () => {
       const ridershipData = await d3.csv("Subway_Ridership.csv");
       const accidentData = await d3.csv("NYC_Collisions.csv");
 
       const boroughMap = {
-        BK: "BROOKLYN",
-        M: "MANHATTAN",
-        Q: "QUEENS",
-        BX: "BRONX",
+        BK: "Brooklyn",
+        M: "Manhattan",
+        Q: "Queens",
+        BX: "Bronx",
       };
 
+      // Process ridership data
       ridershipData.forEach(d => {
-        d.Date = d.transit_timestamp.split(" ")[0].trim();
-        d.Borough = (boroughMap[d.borough.toUpperCase()] || "UNKNOWN").toUpperCase();
-        d.Ridership = +d.ridership;
+        d.Date = d.transit_timestamp.split(" ")[0].trim(); // Extract and clean the date
+        d.Borough = capitalizeFirstLetter(boroughMap[d.borough.toUpperCase()] || "Unknown"); // Capitalize first letter
+        d.Ridership = +d.ridership; // Convert ridership to a number
       });
 
+      // Process accident data
       accidentData.forEach(d => {
         if (d.Date) {
-          d.Date = d.Date.trim();
-          d.Borough = (d.Borough || "UNKNOWN").toUpperCase();
+          d.Date = d.Date.trim(); // Clean the date
+          d.Borough = capitalizeFirstLetter(d.Borough || "Unknown"); // Capitalize first letter
         } else {
-          console.warn("Missing Date field:", d);
+          console.warn("Missing Date field:", d); // Log missing dates for debugging
           d.Date = null;
         }
       });
 
+
       const aggregateData = (startDate, endDate) => {
         const filteredRidership = ridershipData.filter(d => d.Date >= startDate && d.Date <= endDate);
 
-        const boroughs = ["BROOKLYN", "BRONX", "MANHATTAN", "QUEENS"];
+        const boroughs = ["Brooklyn", "Bronx", "Manhattan", "Queens"];
         const aggregated = boroughs.map(borough => {
           const ridership = d3.sum(filteredRidership.filter(d => d.Borough === borough), d => d.Ridership) / 1000;
 
@@ -528,7 +537,7 @@
       };
 
       const xScale = d3.scaleBand()
-        .domain(["BROOKLYN", "BRONX", "MANHATTAN", "QUEENS"])
+        .domain(["Brooklyn", "Bronx", "Manhattan", "Queens"])
         .range([10, width2])
         .padding(0.2);
 
@@ -642,7 +651,7 @@
           .attr("fill", "#1f77b4")
           .on("mouseover", (event, d) => {
             tooltip.style("visibility", "visible")
-              .text(`Ridership (Scaled by 1000): ${d.ridership * 1000}`);
+              .text(`Ridership: ${d.ridership * 1000}`);
           })
           .on("mousemove", event => {
             tooltip.style("top", `${event.pageY + 10}px`).style("left", `${event.pageX + 10}px`);
